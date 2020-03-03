@@ -4,21 +4,7 @@ import sklearn.cluster as sc
 import pdb
 import datetime
 import os
-
-#config
-testmode = True
-resource_class_path = 'onshore_wind_resource_classes.csv'
-supply_curve_path = '/shared-projects/rev/projects/reeds_jan2020/wind/reeds_wind_sc.csv'
-filter_cols = {'offshore':[0]} #set to None if the full dataframe is used
-output_prefix = 'windons'
-
-#More consistent config
-testmode_reg = [1,10,100]
-output_dir = 'output/'
-bin_group_cols = ['model_region','class']
-bin_param = 'trans_cap_cost'
-bin_num = 5
-bin_method = 'kmeans'
+import config as cf
 
 def filter_df(df, filter_cols):
     for c in filter_cols.keys():
@@ -78,23 +64,23 @@ def aggregate_sc(df_sc):
     return df_sc_agg
 
 if __name__== "__main__":
-    print('Reading inputs...')
+    print('Reading supply curve inputs...')
     startTime = datetime.datetime.now()
-    df_resource_classes = pd.read_csv(resource_class_path)
-    df_supply_curve = pd.read_csv(supply_curve_path, low_memory=False)
-    if filter_cols is not None:
-        df_supply_curve = filter_df(df_supply_curve,filter_cols)
-    if testmode:
-        df_supply_curve = df_supply_curve[df_supply_curve['model_region'].isin(testmode_reg)].copy()
-    print('Done reading inputs: '+ str(datetime.datetime.now() - startTime))
+    df_resource_classes = pd.read_csv(cf.resource_class_path)
+    df_supply_curve = pd.read_csv(cf.supply_curve_path, low_memory=False)
+    if cf.filter_cols is not None:
+        df_supply_curve = filter_df(df_supply_curve,cf.filter_cols)
+    if cf.testmode:
+        df_supply_curve = df_supply_curve[df_supply_curve['model_region'].isin(cf.testmode_reg)].copy()
+    print('Done reading supply curve inputs: '+ str(datetime.datetime.now() - startTime))
     df_supply_curve = classify(df_supply_curve, df_resource_classes)
-    df_supply_curve = binnify(df_supply_curve, bin_group_cols, bin_param, bin_num, bin_method)
+    df_supply_curve = binnify(df_supply_curve, cf.bin_group_cols, cf.bin_param, cf.bin_num, cf.bin_method)
     print('Outputting raw csv...')
     startTime = datetime.datetime.now()
-    if not os.path.exists(output_dir):
-        os.makedirs(output_dir)
-    df_supply_curve.to_csv(output_dir + output_prefix + '_supply_curve_raw.csv', index=False)
+    if not os.path.exists(cf.output_dir):
+        os.makedirs(cf.output_dir)
+    df_supply_curve.to_csv(cf.output_dir + cf.output_prefix + '_supply_curve_raw.csv', index=False)
     print('Done outputting raw csv: '+ str(datetime.datetime.now() - startTime))
     df_agg_supply_curve = aggregate_sc(df_supply_curve)
-    df_agg_supply_curve.to_csv(output_dir + output_prefix + '_supply_curve.csv')
+    df_agg_supply_curve.to_csv(cf.output_dir + cf.output_prefix + '_supply_curve.csv')
     pdb.set_trace()
