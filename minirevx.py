@@ -41,24 +41,30 @@ def classify(df_sc, class_path):
 def binnify(df_sc, group_cols, bin_col, num_bins, method):
     print('Adding bins...')
     startTime = datetime.datetime.now()
-    df_sc['bin'] = df_sc.groupby(group_cols, sort=False)[bin_col].transform(get_bin, bin_col, num_bins, method)
+    df_sc = df_sc.groupby(group_cols, sort=False).apply(get_bin, bin_col, num_bins, method)
+    #pandas adds an additional column at position 0 with the index, which i don't completely understand,
+    #so we need to drop it
+    df_sc.drop(df_sc.columns[0], axis=1, inplace=True)
     print('Done adding bins: '+ str(datetime.datetime.now() - startTime))
     return df_sc
 
-def get_bin(ser, bin_col, num_bins, method):
-    if method == 'kmeans':
-        #If we have less unique points than num_bins, we simply group the points with the same values.
-        if ser.unique().size < num_bins:
-            bin_ser = ser.rank(method='dense')
-        else:
-            nparr = ser.to_numpy().reshape(-1,1)
-            kmeans = sc.KMeans(n_clusters=num_bins, random_state=0).fit(nparr)
-            bin_ser = pd.Series(kmeans.labels_)
-            #but kmeans doesn't necessarily label in order of increasing value because it is 2D,
-            #so we replace labels with cluster centers, then rank
-            kmeans_map = pd.Series(kmeans.cluster_centers_.flatten())
-            bin_ser = bin_ser.map(kmeans_map).rank(method='dense')
-    return bin_ser
+def get_bin(df, bin_col, num_bins, method):
+    #If we have less unique points than num_bins, we simply group the points with the same values.
+    ser = df[bin_col]
+    if ser.unique().size <= num_bins:
+        bin_ser = ser.rank(method='dense')
+    elif method == 'kmeans':
+        nparr = ser.to_numpy().reshape(-1,1)
+        kmeans = sc.KMeans(n_clusters=num_bins, random_state=0).fit(nparr)
+        bin_ser = pd.Series(kmeans.labels_)
+        #but kmeans doesn't necessarily label in order of increasing value because it is 2D,
+        #so we replace labels with cluster centers, then rank
+        kmeans_map = pd.Series(kmeans.cluster_centers_.flatten())
+        bin_ser = bin_ser.map(kmeans_map).rank(method='dense')
+    elif method == 'equal':
+        pass
+    df['bin'] = bin_ser.values
+    return df
 
 def output_raw_sc(df_sc, out_dir, prefix):
     print('Outputting raw csv...')
