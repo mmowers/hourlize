@@ -4,17 +4,25 @@ import sklearn.cluster as sc
 import pdb
 import datetime
 import os
+import h5py
 import config as cf
 
-def filter_df(df, filter_cols):
-    for c in filter_cols.keys():
-        df = df[df[c].isin(filter_cols[c])].copy()
+def get_df_sc_filtered(sc_path, filter_cols={}, test_mode=False, test_filters={}):
+    print('Reading supply curve inputs and filtering...')
+    startTime = datetime.datetime.now()
+    df = pd.read_csv(sc_path, low_memory=False)
+    for k in filter_cols.keys():
+        df = df[df[k].isin(filter_cols[k])].copy()
+    if test_mode:
+        for k in test_filters.keys():
+            df = df[df[k].isin(test_filters[k])].copy()
+    print('Done reading supply curve inputs and filtering: '+ str(datetime.datetime.now() - startTime))
     return df
 
-def classify(df_sc,df_class):
+def classify(df_sc, class_path):
     print('Adding classes...')
     startTime = datetime.datetime.now()
-    df_class = df_class.set_index('class')
+    df_class = pd.read_csv(class_path, index_col='class')
     df_sc['class'] = 'NA'
     for cname, row in df_class.iterrows():
         mask = True
@@ -52,6 +60,13 @@ def get_bin(ser, bin_col, num_bins, method):
             bin_ser = bin_ser.map(kmeans_map).rank(method='dense')
     return bin_ser
 
+def output_raw_sc(df_sc, out_dir, prefix):
+    print('Outputting raw csv...')
+    startTime = datetime.datetime.now()
+    if not os.path.exists(out_dir):
+        os.makedirs(out_dir)
+    df_sc.to_csv(out_dir + prefix + '_supply_curve_raw.csv', index=False)
+    print('Done outputting raw csv: '+ str(datetime.datetime.now() - startTime))
 
 def aggregate_sc(df_sc):
     print('Aggregating supply curve...')
@@ -63,24 +78,17 @@ def aggregate_sc(df_sc):
     print('Done aggregating supply curve: '+ str(datetime.datetime.now() - startTime))
     return df_sc_agg
 
+def get_average_profiles(df_sc, h5_path, h5_dset, id_col, weight_col, ts_path):
+    df_ts = pd.read_csv(ts_path, low_memory=False)
+    with h5py.File(h5_path, 'r') as profile_file:
+        pass
+
 if __name__== "__main__":
-    print('Reading supply curve inputs...')
-    startTime = datetime.datetime.now()
-    df_resource_classes = pd.read_csv(cf.resource_class_path)
-    df_supply_curve = pd.read_csv(cf.supply_curve_path, low_memory=False)
-    if cf.filter_cols is not None:
-        df_supply_curve = filter_df(df_supply_curve,cf.filter_cols)
-    if cf.testmode:
-        df_supply_curve = df_supply_curve[df_supply_curve['model_region'].isin(cf.testmode_reg)].copy()
-    print('Done reading supply curve inputs: '+ str(datetime.datetime.now() - startTime))
-    df_supply_curve = classify(df_supply_curve, df_resource_classes)
+    df_supply_curve = get_df_sc_filtered(cf.supply_curve_path, cf.filter_cols, cf.test_mode, cf.test_filters)
+    df_supply_curve = classify(df_supply_curve, cf.resource_class_path)
     df_supply_curve = binnify(df_supply_curve, cf.bin_group_cols, cf.bin_param, cf.bin_num, cf.bin_method)
-    print('Outputting raw csv...')
-    startTime = datetime.datetime.now()
-    if not os.path.exists(cf.output_dir):
-        os.makedirs(cf.output_dir)
-    df_supply_curve.to_csv(cf.output_dir + cf.output_prefix + '_supply_curve_raw.csv', index=False)
-    print('Done outputting raw csv: '+ str(datetime.datetime.now() - startTime))
+    output_raw_sc(df_supply_curve, cf.output_dir, cf.output_prefix)
     df_agg_supply_curve = aggregate_sc(df_supply_curve)
     df_agg_supply_curve.to_csv(cf.output_dir + cf.output_prefix + '_supply_curve.csv')
+    #average_profile_arr = get_average_profiles(df_supply_curve, cf.profile_h5_path, cf.profile_h5_dset, cf.profile_id_col, cf.profile_weight_col, cf.timeslice_path)
     pdb.set_trace()
