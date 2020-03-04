@@ -42,9 +42,6 @@ def binnify(df_sc, group_cols, bin_col, num_bins, method):
     print('Adding bins...')
     startTime = datetime.datetime.now()
     df_sc = df_sc.groupby(group_cols, sort=False).apply(get_bin, bin_col, num_bins, method)
-    #pandas adds an additional column at position 0 with the index, which i don't completely understand,
-    #so we need to drop it
-    df_sc.drop(df_sc.columns[0], axis=1, inplace=True)
     print('Done adding bins: '+ str(datetime.datetime.now() - startTime))
     return df_sc
 
