@@ -50,6 +50,7 @@ def get_bin(df, bin_col, num_bins, method):
     ser = df[bin_col]
     if ser.unique().size <= num_bins:
         bin_ser = ser.rank(method='dense')
+        df['bin'] = bin_ser.values
     elif method == 'kmeans':
         nparr = ser.to_numpy().reshape(-1,1)
         kmeans = sc.KMeans(n_clusters=num_bins, random_state=0).fit(nparr)
@@ -58,9 +59,24 @@ def get_bin(df, bin_col, num_bins, method):
         #so we replace labels with cluster centers, then rank
         kmeans_map = pd.Series(kmeans.cluster_centers_.flatten())
         bin_ser = bin_ser.map(kmeans_map).rank(method='dense')
-    elif method == 'equal':
-        pass
-    df['bin'] = bin_ser.values
+        df['bin'] = bin_ser.values
+    elif method == 'equal_capacity':
+        #using a manual method instead of pd.cut because i want the first bin to contain the
+        #first sc point regardless, even if its capacity is more than the capacity of the bin,
+        #and likewise for other bins, so i don't skip any bins.
+        orig_index = df.index
+        df.sort_values(by=[bin_col], inplace=True)
+        cumcaps = df['capacity'].cumsum().tolist()
+        totcap = df['capacity'].sum()
+        vals = df[bin_col].tolist()
+        bins = []
+        curbin = 1
+        for i,v in enumerate(vals):
+            bins.append(curbin)
+            if cumcaps[i] >= totcap*curbin/num_bins:
+                curbin += 1
+        df['bin'] = bins
+        df = df.reindex(index=orig_index) #we need the same index ordering for apply to work.
     return df
 
 def output_raw_sc(df_sc, out_dir, prefix):

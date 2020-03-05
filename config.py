@@ -15,5 +15,5 @@ output_dir = 'output/'
 bin_group_cols = ['model_region','class']
 bin_param = 'trans_cap_cost'
 bin_num = 5
-bin_method = 'kmeans' #'kmeans', 'equal'
+bin_method = 'equal_capacity' #'kmeans', 'equal_capacity'
 
