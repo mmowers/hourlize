@@ -42,11 +42,13 @@ def binnify(df_sc, group_cols, bin_col, num_bins, method):
     print('Adding bins...')
     startTime = datetime.datetime.now()
     df_sc = df_sc.groupby(group_cols, sort=False).apply(get_bin, bin_col, num_bins, method)
+    df_sc = df_sc.reset_index(drop=True).sort_values('sc_gid')
     print('Done adding bins: '+ str(datetime.datetime.now() - startTime))
     return df_sc
 
-def get_bin(df, bin_col, num_bins, method):
+def get_bin(df_in, bin_col, num_bins, method):
     #If we have less unique points than num_bins, we simply group the points with the same values.
+    df = df_in.copy()
     ser = df[bin_col]
     if ser.unique().size <= num_bins:
         bin_ser = ser.rank(method='dense')
@@ -110,4 +112,3 @@ if __name__== "__main__":
     df_agg_supply_curve = aggregate_sc(df_supply_curve)
     df_agg_supply_curve.to_csv(cf.output_dir + cf.output_prefix + '_supply_curve.csv')
     #average_profile_arr = get_average_profiles(df_supply_curve, cf.profile_h5_path, cf.profile_h5_dset, cf.profile_id_col, cf.profile_weight_col, cf.timeslice_path)
-    pdb.set_trace()
