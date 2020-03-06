@@ -50,7 +50,7 @@ def binnify(df_sc, group_cols, bin_col, num_bins, method):
 def get_bin(df_in, bin_col, num_bins, method):
     df = df_in.copy()
     ser = df[bin_col]
-    #If we have less unique points than num_bins, we simply group the points with the same values.
+    #If we have less than or equal unique points than num_bins, we simply group the points with the same values.
     if ser.unique().size <= num_bins:
         bin_ser = ser.rank(method='dense')
         df['bin'] = bin_ser.values
@@ -90,23 +90,23 @@ def output_raw_sc(df_sc, out_dir, prefix):
     df_sc.to_csv(out_dir + prefix + '_supply_curve_raw.csv', index=False)
     print('Done outputting raw csv: '+ str(datetime.datetime.now() - startTime))
 
-def aggregate_sc(df_sc):
+def aggregate_sc(df_sc, reg_col):
     print('Aggregating supply curve...')
     startTime = datetime.datetime.now()
     # Define a lambda function to compute the weighted mean:
     wm = lambda x: np.average(x, weights=df_sc.loc[x.index, "capacity"])
     aggs = {'capacity': 'sum', 'trans_cap_cost':wm, 'dist_mi':wm }
-    df_sc_agg = df_sc.groupby([cf.reg_col,'class','bin']).agg(aggs)
+    df_sc_agg = df_sc.groupby([reg_col,'class','bin']).agg(aggs)
     print('Done aggregating supply curve: '+ str(datetime.datetime.now() - startTime))
     return df_sc_agg
 
-def get_profiles(df_sc, h5_path, h5_dset, id_col, weight_col, ts_path, rep_prof_sel):
+def get_profiles(df_sc, h5_path, h5_dset, id_col, weight_col, reg_col, ts_path, rep_prof_sel):
     print('Getting average profiles...')
     startTime = datetime.datetime.now()
     df_ts = pd.read_csv(ts_path, low_memory=False)
     df_ts['datetime'] = pd.to_datetime(df_ts['datetime'])
     #get unique combinations of region and class
-    df_reg_col = df_sc[[cf.reg_col,'class']].drop_duplicates().reset_index(drop=True)
+    df_reg_col = df_sc[[reg_col,'class']].drop_duplicates().reset_index(drop=True)
     with h5py.File(h5_path, 'r') as h5:
         #iniitialize avgs_arr and reps_arr with the right dimensions
         avgs_arr = np.zeros((8760,len(df_reg_col)))
@@ -118,8 +118,8 @@ def get_profiles(df_sc, h5_path, h5_dset, id_col, weight_col, ts_path, rep_prof_
         time_df = pd.merge(left=time_df, right=df_ts, on='datetime', how='left', sort=False)
         idxls = time_df[time_df['timeslice'].notnull()].index.tolist()
         for i,r in df_reg_col.iterrows():
-            print('region=' + str(r[cf.reg_col]) + ' class=' + str(r['class']))
-            df_rc = df_sc[(df_sc[cf.reg_col] == r[cf.reg_col]) & (df_sc['class'] == r['class'])].copy()
+            print('region=' + str(r[reg_col]) + ' class=' + str(r['class']))
+            df_rc = df_sc[(df_sc[reg_col] == r[reg_col]) & (df_sc['class'] == r['class'])].copy()
             df_rc = df_rc.reset_index(drop=True)
             idls = df_rc[id_col].tolist()
             wtls = df_rc[weight_col].tolist()
@@ -162,8 +162,8 @@ if __name__== "__main__":
     df_supply_curve = classify(df_supply_curve, cf.resource_class_path)
     df_supply_curve = binnify(df_supply_curve, cf.bin_group_cols, cf.bin_param, cf.bin_num, cf.bin_method)
     output_raw_sc(df_supply_curve, cf.output_dir, cf.output_prefix)
-    df_agg_supply_curve = aggregate_sc(df_supply_curve)
+    df_agg_supply_curve = aggregate_sc(df_supply_curve, cf.reg_col)
     df_agg_supply_curve.to_csv(cf.output_dir + cf.output_prefix + '_supply_curve.csv')
     df_reg_col, avg_prof, rep_prof, rep_idx  = get_profiles(df_supply_curve, cf.profile_h5_path, cf.profile_h5_dset, cf.profile_id_col,
-                                              cf.profile_weight_col, cf.timeslice_path, cf.rep_profile_select)
+        cf.profile_weight_col, cf.reg_col, cf.timeslice_path, cf.rep_profile_select)
     pdb.set_trace()
