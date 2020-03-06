@@ -12,8 +12,9 @@ output_prefix = 'windons'
 #More consistent config
 test_filters = {'model_region':[1,10,100]}
 output_dir = 'output/'
-bin_group_cols = ['model_region','class']
+reg_col = 'model_region'
+bin_group_cols = [reg_col,'class']
 bin_param = 'trans_cap_cost'
 bin_num = 5
 bin_method = 'equal_capacity' #'kmeans', 'equal_capacity'
-
+rep_profile_select = 'rmse' #'rmse','ave'

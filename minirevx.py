@@ -5,6 +5,7 @@ import pdb
 import datetime
 import os
 import h5py
+import json
 import config as cf
 
 def get_df_sc_filtered(sc_path, filter_cols={}, test_mode=False, test_filters={}):
@@ -47,9 +48,9 @@ def binnify(df_sc, group_cols, bin_col, num_bins, method):
     return df_sc
 
 def get_bin(df_in, bin_col, num_bins, method):
-    #If we have less unique points than num_bins, we simply group the points with the same values.
     df = df_in.copy()
     ser = df[bin_col]
+    #If we have less unique points than num_bins, we simply group the points with the same values.
     if ser.unique().size <= num_bins:
         bin_ser = ser.rank(method='dense')
         df['bin'] = bin_ser.values
@@ -95,14 +96,66 @@ def aggregate_sc(df_sc):
     # Define a lambda function to compute the weighted mean:
     wm = lambda x: np.average(x, weights=df_sc.loc[x.index, "capacity"])
     aggs = {'capacity': 'sum', 'trans_cap_cost':wm, 'dist_mi':wm }
-    df_sc_agg = df_sc.groupby(['model_region','class','bin']).agg(aggs)
+    df_sc_agg = df_sc.groupby([cf.reg_col,'class','bin']).agg(aggs)
     print('Done aggregating supply curve: '+ str(datetime.datetime.now() - startTime))
     return df_sc_agg
 
-def get_average_profiles(df_sc, h5_path, h5_dset, id_col, weight_col, ts_path):
+def get_profiles(df_sc, h5_path, h5_dset, id_col, weight_col, ts_path, rep_prof_sel):
+    print('Getting average profiles...')
+    startTime = datetime.datetime.now()
     df_ts = pd.read_csv(ts_path, low_memory=False)
-    with h5py.File(h5_path, 'r') as profile_file:
-        pass
+    df_ts['datetime'] = pd.to_datetime(df_ts['datetime'])
+    #get unique combinations of region and class
+    df_reg_col = df_sc[[cf.reg_col,'class']].drop_duplicates().reset_index(drop=True)
+    with h5py.File(h5_path, 'r') as h5:
+        #iniitialize avgs_arr and reps_arr with the right dimensions
+        avgs_arr = np.zeros((8760,len(df_reg_col)))
+        reps_arr = avgs_arr.copy()
+        reps_idx = []
+        #get idxls, the index of the profiles, which excludes half hour for pv, e.g.
+        times = h5['time_index'][:].astype('datetime64')
+        time_df = pd.DataFrame({'datetime':times})
+        time_df = pd.merge(left=time_df, right=df_ts, on='datetime', how='left', sort=False)
+        idxls = time_df[time_df['timeslice'].notnull()].index.tolist()
+        for i,r in df_reg_col.iterrows():
+            print('region=' + str(r[cf.reg_col]) + ' class=' + str(r['class']))
+            df_rc = df_sc[(df_sc[cf.reg_col] == r[cf.reg_col]) & (df_sc['class'] == r['class'])].copy()
+            df_rc = df_rc.reset_index(drop=True)
+            idls = df_rc[id_col].tolist()
+            wtls = df_rc[weight_col].tolist()
+            tzls = df_rc['timezone'].tolist()
+            tzls = [int(t) for t in tzls]
+            if df_rc[id_col].dtype is object:
+                idls = [json.loads(l) for l in idls]
+                wtls = [json.loads(l) for l in wtls]
+                #We will need to flatten idls and wtls, which means we may need to turn tzls into a list of lists too
+                #with duplication. For h5 retrieval we also need the ids sorted...
+                #idls = ''.join(idls).replace('[','').replace(']',',').replace(' ','').strip(',').split(',')
+                #wtls = ''.join(wtls).replace('[','').replace(']',',').replace(' ','').strip(',').split(',')
+                #idls = [int(n) for n in idls]
+                #wtls = [int(n) for n in wtls]
+            if len(idls) != len(wtls):
+                print('IDs and weights have different length!')
+            arr = h5[h5_dset][:,idls]
+            #reduce elements to on the hour using idxls
+            arr = arr[idxls,:]
+            #Convert to local time and start at 1am instead of 12am, ie roll by an additional 1.
+            arr = arr.T
+            for n in range(len(arr)):
+                arr[n] = np.roll(arr[n], tzls[n] - 1)
+            #Take weighted average and add to avgs_arr
+            avg_arr = np.average(arr, axis=0, weights=wtls)
+            avgs_arr[:,i] = avg_arr
+            #Now find the profile in arr that is most representative, ie has the minimum error
+            if rep_prof_sel == 'rmse':
+                errs = np.sqrt(((arr-avg_arr)**2).mean(axis=1))
+            elif rep_prof_sel == 'ave':
+                errs = abs(arr.sum(axis=1) - avg_arr.sum())
+            min_idx = np.argmin(errs)
+            reps_arr[:,i] = arr[min_idx]
+            reps_idx.append(idls[min_idx]) #this needs to change for pv
+    print('Done getting average profiles: '+ str(datetime.datetime.now() - startTime))
+    return df_reg_col, avgs_arr, reps_arr, reps_idx
 
 if __name__== "__main__":
     df_supply_curve = get_df_sc_filtered(cf.supply_curve_path, cf.filter_cols, cf.test_mode, cf.test_filters)
@@ -111,4 +164,6 @@ if __name__== "__main__":
     output_raw_sc(df_supply_curve, cf.output_dir, cf.output_prefix)
     df_agg_supply_curve = aggregate_sc(df_supply_curve)
     df_agg_supply_curve.to_csv(cf.output_dir + cf.output_prefix + '_supply_curve.csv')
-    #average_profile_arr = get_average_profiles(df_supply_curve, cf.profile_h5_path, cf.profile_h5_dset, cf.profile_id_col, cf.profile_weight_col, cf.timeslice_path)
+    df_reg_col, avg_prof, rep_prof, rep_idx  = get_profiles(df_supply_curve, cf.profile_h5_path, cf.profile_h5_dset, cf.profile_id_col,
+                                              cf.profile_weight_col, cf.timeslice_path, cf.rep_profile_select)
+    pdb.set_trace()
