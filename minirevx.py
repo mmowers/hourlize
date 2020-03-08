@@ -11,7 +11,7 @@ import config as cf
 def get_df_sc_filtered(sc_path, reg_col, filter_cols={}, test_mode=False, test_filters={}):
     print('Reading supply curve inputs and filtering...')
     startTime = datetime.datetime.now()
-    df = pd.read_csv(sc_path, low_memory=False)
+    df = pd.read_csv(sc_path, dtype={reg_col:int}, low_memory=False)
     for k in filter_cols.keys():
         df = df[df[k].isin(filter_cols[k])].copy()
     if test_mode:
@@ -81,6 +81,7 @@ def get_bin(df_in, bin_col, bin_num, bin_method):
                 curbin += 1
         df['bin'] = bins
         df = df.reindex(index=orig_index) #we need the same index ordering for apply to work.
+    df['bin'] = df['bin'].astype(int)
     return df
 
 def output_raw_sc(df_sc, out_dir, out_prefix):
