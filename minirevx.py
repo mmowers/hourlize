@@ -176,12 +176,12 @@ def get_profiles(df_sc, profile_path, profile_dset, profile_id_col, profile_weig
     return df_rep, avgs_arr, reps_arr
 
 if __name__== "__main__":
-    df_supply_curve = get_df_sc_filtered(cf.sc_path, cf.reg_col, cf.filter_cols, cf.test_mode, cf.test_filters)
-    df_supply_curve = classify(df_supply_curve, cf.class_path)
-    df_supply_curve = binnify(df_supply_curve, cf.bin_group_cols, cf.bin_col, cf.bin_num, cf.bin_method)
-    output_raw_sc(df_supply_curve, cf.out_dir, cf.out_prefix)
-    df_agg_supply_curve = aggregate_sc(df_supply_curve)
-    df_agg_supply_curve.to_csv(cf.out_dir + cf.out_prefix + '_supply_curve.csv')
-    df_rep, avgs_arr, reps_arr = get_profiles(df_supply_curve, cf.profile_path, cf.profile_dset, cf.profile_id_col,
+    df_sc = get_df_sc_filtered(cf.sc_path, cf.reg_col, cf.filter_cols, cf.test_mode, cf.test_filters)
+    df_sc = classify(df_sc, cf.class_path)
+    df_sc = binnify(df_sc, cf.bin_group_cols, cf.bin_col, cf.bin_num, cf.bin_method)
+    output_raw_sc(df_sc, cf.out_dir, cf.out_prefix)
+    df_sc_agg = aggregate_sc(df_sc)
+    df_sc_agg.to_csv(cf.out_dir + cf.out_prefix + '_supply_curve.csv')
+    df_rep, avgs_arr, reps_arr = get_profiles(df_sc, cf.profile_path, cf.profile_dset, cf.profile_id_col,
         cf.profile_weight_col, cf.timeslice_path, cf.rep_profile_method)
     pdb.set_trace()
