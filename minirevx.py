@@ -106,8 +106,8 @@ def aggregate_sc(df_sc):
     return df_sc_agg
 
 def get_profiles(df_sc, profile_path, profile_dset, profile_id_col, profile_weight_col,
-                 timeslice_path, to_local, to_1am, rep_profile_method, out_dir, out_prefix):
-    print('Getting average profiles...')
+                 timeslice_path, to_local, to_1am, rep_profile_method):
+    print('Getting profiles...')
     startTime = datetime.datetime.now()
     df_ts = pd.read_csv(timeslice_path, low_memory=False)
     df_ts['datetime'] = pd.to_datetime(df_ts['datetime'])
@@ -191,24 +191,12 @@ def get_profiles(df_sc, profile_path, profile_dset, profile_id_col, profile_weig
 
         #scale the data as necessary
         if 'scale_factor' in h5[profile_dset].attrs.keys():
-            reps_arr_out = reps_arr.copy()
             scale = h5[profile_dset].attrs['scale_factor']
             reps_arr = reps_arr / scale
             avgs_arr = avgs_arr / scale
-        else:
-            reps_arr_out = (reps_arr*1000).round().astype('uint16')
     df_rep['rep_gen_gid'] = reps_idx
     df_rep['timezone'] = timezones
-    print('Done getting average profiles: '+ str(datetime.datetime.now() - startTime))
-    #output profiles to h5 files
-    print('Outputting profiles...')
-    startTime = datetime.datetime.now()
-    out_file = out_dir + out_prefix + '_hourly_cf.h5'
-    with h5py.File(out_file, 'w') as f:
-        f.create_dataset('rep_profiles_0', data=reps_arr_out)
-        f.create_dataset('time_index', data=df_ts['datetime'].to_numpy().astype('S'))
-        f.create_dataset('meta', data=df_rep.to_records(index=False))
-    print('Done outputting profiles: '+ str(datetime.datetime.now() - startTime))
+    print('Done getting profiles: '+ str(datetime.datetime.now() - startTime))
     return df_rep, avgs_arr, reps_arr, df_ts
 
 def calc_performance(avgs_arr, reps_arr, df_rep, df_ts, cfmean_type):
@@ -236,14 +224,20 @@ def calc_performance(avgs_arr, reps_arr, df_rep, df_ts, cfmean_type):
     print('Done with performance calcs: '+ str(datetime.datetime.now() - startTime))
     return df_perf
 
-def save_outputs(df_sc, df_sc_agg, df_perf, out_dir, out_prefix):
+def save_outputs(df_sc, df_sc_agg, df_perf, reps_arr, df_ts, df_rep, out_dir, out_prefix):
     print('Saving outputs...')
     startTime = datetime.datetime.now()
     df_sc.to_csv(out_dir + out_prefix + '_supply_curve_raw.csv', index=False)
     df_sc_agg.to_csv(out_dir + out_prefix + '_supply_curve.csv')
     df_perf.to_csv(out_dir + out_prefix + '_performance.csv')
+    #output profiles to h5 file
+    out_file = out_dir + out_prefix + '_hourly_cf.h5'
+    reps_arr_out = (reps_arr*1000).round().astype('uint16')
+    with h5py.File(out_file, 'w') as f:
+        f.create_dataset('rep_profiles_0', data=reps_arr_out)
+        f.create_dataset('time_index', data=df_ts['datetime'].to_numpy().astype('S'))
+        f.create_dataset('meta', data=df_rep.to_records(index=False))
     print('Done saving outputs: '+ str(datetime.datetime.now() - startTime))
-
 
 if __name__== '__main__':
     save_inputs(this_dir_path, cf.out_dir, cf.timeslice_path, cf.class_path)
@@ -252,6 +246,6 @@ if __name__== '__main__':
     df_sc = binnify(df_sc, cf.bin_group_cols, cf.bin_col, cf.bin_num, cf.bin_method)
     df_sc_agg = aggregate_sc(df_sc)
     df_rep, avgs_arr, reps_arr, df_ts = get_profiles(df_sc, cf.profile_path, cf.profile_dset, cf.profile_id_col,
-        cf.profile_weight_col, cf.timeslice_path, cf.to_local, cf.to_1am, cf.rep_profile_method, cf.out_dir, cf.out_prefix)
+        cf.profile_weight_col, cf.timeslice_path, cf.to_local, cf.to_1am, cf.rep_profile_method)
     df_perf = calc_performance(avgs_arr, reps_arr, df_rep, df_ts, cf.cfmean_type)
-    save_outputs(df_sc, df_sc_agg, df_perf, cf.out_dir, cf.out_prefix)
+    save_outputs(df_sc, df_sc_agg, df_perf, reps_arr, df_ts, df_rep, cf.out_dir, cf.out_prefix)
