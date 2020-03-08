@@ -96,13 +96,13 @@ def aggregate_sc(df_sc):
     print('Aggregating supply curve...')
     startTime = datetime.datetime.now()
     # Define a lambda function to compute the weighted mean:
-    wm = lambda x: np.average(x, weights=df_sc.loc[x.index, "capacity"])
+    wm = lambda x: np.average(x, weights=df_sc.loc[x.index, 'capacity'])
     aggs = {'capacity': 'sum', 'trans_cap_cost':wm, 'dist_mi':wm }
     df_sc_agg = df_sc.groupby(['region','class','bin']).agg(aggs)
     print('Done aggregating supply curve: '+ str(datetime.datetime.now() - startTime))
     return df_sc_agg
 
-def get_profiles(df_sc, profile_path, profile_dset, profile_id_col, profile_weight_col, timeslice_path, rep_profile_method):
+def get_profiles(df_sc, profile_path, profile_dset, profile_id_col, profile_weight_col, timeslice_path, rep_profile_method, out_dir, out_prefix):
     print('Getting average profiles...')
     startTime = datetime.datetime.now()
     df_ts = pd.read_csv(timeslice_path, low_memory=False)
@@ -170,12 +170,18 @@ def get_profiles(df_sc, profile_path, profile_dset, profile_id_col, profile_weig
                  )
     df_rep['rep_gen_gid'] = reps_idx
     df_rep['timezone'] = timezones
-    #output profiles to h5 files
-
     print('Done getting average profiles: '+ str(datetime.datetime.now() - startTime))
+    #output profiles to h5 files
+    print('Outputting profiles...')
+    startTime = datetime.datetime.now()
+    out_file = out_dir + out_prefix + '_hourly_cf.h5'
+    with h5py.File(out_file, 'w') as f:
+        f.create_dataset('rep_profiles_0', data=reps_arr)
+        f.create_dataset('meta', data=df_rep.to_records(index=False))
+    print('Done outputting profiles: '+ str(datetime.datetime.now() - startTime))
     return df_rep, avgs_arr, reps_arr
 
-if __name__== "__main__":
+if __name__== '__main__':
     df_sc = get_df_sc_filtered(cf.sc_path, cf.reg_col, cf.filter_cols, cf.test_mode, cf.test_filters)
     df_sc = classify(df_sc, cf.class_path)
     df_sc = binnify(df_sc, cf.bin_group_cols, cf.bin_col, cf.bin_num, cf.bin_method)
@@ -183,5 +189,5 @@ if __name__== "__main__":
     df_sc_agg = aggregate_sc(df_sc)
     df_sc_agg.to_csv(cf.out_dir + cf.out_prefix + '_supply_curve.csv')
     df_rep, avgs_arr, reps_arr = get_profiles(df_sc, cf.profile_path, cf.profile_dset, cf.profile_id_col,
-        cf.profile_weight_col, cf.timeslice_path, cf.rep_profile_method)
+        cf.profile_weight_col, cf.timeslice_path, cf.rep_profile_method, cf.out_dir, cf.out_prefix)
     pdb.set_trace()
