@@ -11,6 +11,14 @@ import config as cf
 
 this_dir_path = os.path.dirname(os.path.realpath(__file__))
 
+def save_inputs(minirevx_path, out_dir, timeslice_path, class_path):
+    if not os.path.exists(out_dir):
+        os.makedirs(out_dir)
+    shutil.copy2(minirevx_path + '/minirevx.py', out_dir)
+    shutil.copy2(minirevx_path + '/config.py', out_dir)
+    shutil.copy2(timeslice_path, out_dir)
+    shutil.copy2(class_path, out_dir)
+
 def get_df_sc_filtered(sc_path, reg_col, filter_cols={}, test_mode=False, test_filters={}):
     print('Reading supply curve inputs and filtering...')
     startTime = datetime.datetime.now()
@@ -90,8 +98,6 @@ def get_bin(df_in, bin_col, bin_num, bin_method):
 def output_raw_sc(df_sc, out_dir, out_prefix):
     print('Outputting raw csv...')
     startTime = datetime.datetime.now()
-    if not os.path.exists(out_dir):
-        os.makedirs(out_dir)
     df_sc.to_csv(out_dir + out_prefix + '_supply_curve_raw.csv', index=False)
     print('Done outputting raw csv: '+ str(datetime.datetime.now() - startTime))
 
@@ -213,6 +219,7 @@ def get_profiles(df_sc, profile_path, profile_dset, profile_id_col, profile_weig
     return df_rep, avgs_arr, reps_arr, ts_arr
 
 if __name__== '__main__':
+    save_inputs(this_dir_path, cf.out_dir, cf.timeslice_path, cf.class_path)
     df_sc = get_df_sc_filtered(cf.sc_path, cf.reg_col, cf.filter_cols, cf.test_mode, cf.test_filters)
     df_sc = classify(df_sc, cf.class_path)
     df_sc = binnify(df_sc, cf.bin_group_cols, cf.bin_col, cf.bin_num, cf.bin_method)
@@ -221,8 +228,3 @@ if __name__== '__main__':
     df_sc_agg.to_csv(cf.out_dir + cf.out_prefix + '_supply_curve.csv')
     df_rep, avgs_arr, reps_arr, ts_arr = get_profiles(df_sc, cf.profile_path, cf.profile_dset, cf.profile_id_col,
         cf.profile_weight_col, cf.timeslice_path, cf.to_local, cf.to_1am, cf.rep_profile_method, cf.out_dir, cf.out_prefix)
-    #Save input files and config to output
-    shutil.copy2(this_dir_path + '/minirevx.py', cf.out_dir)
-    shutil.copy2(this_dir_path + '/config.py', cf.out_dir)
-    shutil.copy2(cf.timeslice_path, cf.out_dir)
-    shutil.copy2(cf.class_path, cf.out_dir)
