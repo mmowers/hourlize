@@ -106,10 +106,11 @@ def get_profiles(df_sc, h5_path, h5_dset, id_col, weight_col, reg_col, ts_path, 
     df_ts = pd.read_csv(ts_path, low_memory=False)
     df_ts['datetime'] = pd.to_datetime(df_ts['datetime'])
     #get unique combinations of region and class
-    df_reg_col = df_sc[[reg_col,'class']].drop_duplicates().reset_index(drop=True)
+    df_reg_col = df_sc[[reg_col,'class']].drop_duplicates().sort_values(by=[reg_col,'class']).reset_index(drop=True)
+    num_profiles = len(df_reg_col)
     with h5py.File(h5_path, 'r') as h5:
         #iniitialize avgs_arr and reps_arr with the right dimensions
-        avgs_arr = np.zeros((8760,len(df_reg_col)))
+        avgs_arr = np.zeros((8760,num_profiles))
         reps_arr = avgs_arr.copy()
         reps_idx = []
         #get idxls, the index of the profiles, which excludes half hour for pv, e.g.
@@ -118,7 +119,7 @@ def get_profiles(df_sc, h5_path, h5_dset, id_col, weight_col, reg_col, ts_path, 
         time_df = pd.merge(left=time_df, right=df_ts, on='datetime', how='left', sort=False)
         idxls = time_df[time_df['timeslice'].notnull()].index.tolist()
         for i,r in df_reg_col.iterrows():
-            print('region=' + str(r[reg_col]) + ' class=' + str(r['class']))
+            t0 = datetime.datetime.now()
             df_rc = df_sc[(df_sc[reg_col] == r[reg_col]) & (df_sc['class'] == r['class'])].copy()
             df_rc = df_rc.reset_index(drop=True)
             idls = df_rc[id_col].tolist()
@@ -136,7 +137,9 @@ def get_profiles(df_sc, h5_path, h5_dset, id_col, weight_col, reg_col, ts_path, 
                 #wtls = [int(n) for n in wtls]
             if len(idls) != len(wtls):
                 print('IDs and weights have different length!')
+            t1 = datetime.datetime.now()
             arr = h5[h5_dset][:,idls]
+            t2 = datetime.datetime.now()
             #reduce elements to on the hour using idxls
             arr = arr[idxls,:]
             #Convert to local time and start at 1am instead of 12am, ie roll by an additional 1.
@@ -154,8 +157,16 @@ def get_profiles(df_sc, h5_path, h5_dset, id_col, weight_col, reg_col, ts_path, 
             min_idx = np.argmin(errs)
             reps_arr[:,i] = arr[min_idx]
             reps_idx.append(idls[min_idx]) #this needs to change for pv
+            t3 = datetime.datetime.now()
+            print(str(round((i+1)*100/num_profiles,2)) + '% ' +
+                  'region=' + str(r[reg_col]) +
+                  ' class=' + str(r['class']) +
+                  ' time=' + str(round((t3 - t0).microseconds/1e6,2)) + 's' +
+                  ' h5load= ' + str(round((t2 - t1).microseconds/1e6,2)) + 's'
+                 )
+    df_reg_col['rep_' + id_col] = reps_idx
     print('Done getting average profiles: '+ str(datetime.datetime.now() - startTime))
-    return df_reg_col, avgs_arr, reps_arr, reps_idx
+    return df_reg_col, avgs_arr, reps_arr
 
 if __name__== "__main__":
     df_supply_curve = get_df_sc_filtered(cf.supply_curve_path, cf.filter_cols, cf.test_mode, cf.test_filters)
@@ -164,6 +175,6 @@ if __name__== "__main__":
     output_raw_sc(df_supply_curve, cf.output_dir, cf.output_prefix)
     df_agg_supply_curve = aggregate_sc(df_supply_curve, cf.reg_col)
     df_agg_supply_curve.to_csv(cf.output_dir + cf.output_prefix + '_supply_curve.csv')
-    df_reg_col, avg_prof, rep_prof, rep_idx  = get_profiles(df_supply_curve, cf.profile_h5_path, cf.profile_h5_dset, cf.profile_id_col,
+    df_reg_col, avgs_arr, reps_arr = get_profiles(df_supply_curve, cf.profile_h5_path, cf.profile_h5_dset, cf.profile_id_col,
         cf.profile_weight_col, cf.reg_col, cf.timeslice_path, cf.rep_profile_select)
     pdb.set_trace()
