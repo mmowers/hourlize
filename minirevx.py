@@ -121,8 +121,9 @@ def get_profiles(df_sc, profile_path, profile_dset, profile_id_col, profile_weig
         time_df = pd.DataFrame({'datetime':times})
         time_df = pd.merge(left=time_df, right=df_ts, on='datetime', how='left', sort=False)
         idxls = time_df[time_df['timeslice'].notnull()].index.tolist()
+        t0 = datetime.datetime.now()
         for i,r in df_rep.iterrows():
-            t0 = datetime.datetime.now()
+            t1 = datetime.datetime.now()
             df_rc = df_sc[(df_sc['region'] == r['region']) & (df_sc['class'] == r['class'])].copy()
             df_rc = df_rc.reset_index(drop=True)
             idls = df_rc[profile_id_col].tolist()
@@ -140,9 +141,9 @@ def get_profiles(df_sc, profile_path, profile_dset, profile_id_col, profile_weig
                 #wtls = [int(n) for n in wtls]
             if len(idls) != len(wtls):
                 print('IDs and weights have different length!')
-            t1 = datetime.datetime.now()
-            arr = h5[profile_dset][:,idls]
             t2 = datetime.datetime.now()
+            arr = h5[profile_dset][:,idls]
+            t3 = datetime.datetime.now()
             #reduce elements to on the hour using idxls
             arr = arr[idxls,:]
             #Convert to local time and start at 1am instead of 12am, ie roll by an additional 1.
@@ -161,13 +162,22 @@ def get_profiles(df_sc, profile_path, profile_dset, profile_id_col, profile_weig
             reps_arr[:,i] = arr[min_idx]
             reps_idx.append(idls[min_idx]) #Does this need to change for pv?
             timezones.append(tzls[min_idx]) #Does this need to change for pv?
-            t3 = datetime.datetime.now()
-            print(str(round((i+1)*100/num_profiles,2)) + '% ' +
-                  'region=' + str(r['region']) +
-                  ' class=' + str(r['class']) +
-                  ' time=' + str(round((t3 - t0).microseconds/1e6,2)) + 's' +
-                  ' h5load= ' + str(round((t2 - t1).microseconds/1e6,2)) + 's'
-                 )
+            t4 = datetime.datetime.now()
+            frac = (i+1)/num_profiles
+            pct = round(frac*100)
+            tthis = round((t4 - t1).total_seconds(),2)
+            th5 = round((t3 - t2).total_seconds(),2)
+            ttot = (t4 - t0).total_seconds()
+            mtot, stot = divmod(round(ttot), 60)
+            tlft = ttot*(1- frac)/frac
+            mlft, slft = divmod(round(tlft), 60)
+            print(str(pct)+'%'+
+                  '\treg='+str(r['region'])+
+                  '\tcls='+str(r['class'])+
+                  '\tt='+str(tthis)+'s'+
+                  '\th5= '+str(th5)+'s'+
+                  '\ttot='+str(mtot)+'m,'+str(stot)+'s'+
+                  '\tlft='+str(mlft)+'m,'+str(slft)+'s')
     df_rep['rep_gen_gid'] = reps_idx
     df_rep['timezone'] = timezones
     print('Done getting average profiles: '+ str(datetime.datetime.now() - startTime))
