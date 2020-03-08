@@ -95,12 +95,6 @@ def get_bin(df_in, bin_col, bin_num, bin_method):
     df['bin'] = df['bin'].astype(int)
     return df
 
-def output_raw_sc(df_sc, out_dir, out_prefix):
-    print('Outputting raw csv...')
-    startTime = datetime.datetime.now()
-    df_sc.to_csv(out_dir + out_prefix + '_supply_curve_raw.csv', index=False)
-    print('Done outputting raw csv: '+ str(datetime.datetime.now() - startTime))
-
 def aggregate_sc(df_sc):
     print('Aggregating supply curve...')
     startTime = datetime.datetime.now()
@@ -118,9 +112,8 @@ def get_profiles(df_sc, profile_path, profile_dset, profile_id_col, profile_weig
     df_ts = pd.read_csv(timeslice_path, low_memory=False)
     df_ts['datetime'] = pd.to_datetime(df_ts['datetime'])
     #create array of datetimes to output
-    ts_arr = df_ts['datetime'].to_numpy()
     if to_1am is True:
-        ts_arr = np.roll(ts_arr, -1)
+        df_ts = df_ts.apply(np.roll, shift=-1)
     #get unique combinations of region and class
     df_rep = df_sc[['region','class']].drop_duplicates().sort_values(by=['region','class']).reset_index(drop=True)
     num_profiles = len(df_rep)
@@ -213,18 +206,52 @@ def get_profiles(df_sc, profile_path, profile_dset, profile_id_col, profile_weig
     out_file = out_dir + out_prefix + '_hourly_cf.h5'
     with h5py.File(out_file, 'w') as f:
         f.create_dataset('rep_profiles_0', data=reps_arr_out)
-        f.create_dataset('time_index', data=ts_arr.astype('S'))
+        f.create_dataset('time_index', data=df_ts['datetime'].to_numpy().astype('S'))
         f.create_dataset('meta', data=df_rep.to_records(index=False))
     print('Done outputting profiles: '+ str(datetime.datetime.now() - startTime))
-    return df_rep, avgs_arr, reps_arr, ts_arr
+    return df_rep, avgs_arr, reps_arr, df_ts
+
+def calc_performance(avgs_arr, reps_arr, df_rep, df_ts, cfmean_type):
+    print('Calculate peformance characteristics...')
+    startTime = datetime.datetime.now()
+    df_cfmean = df_rep[['region','class']].copy()
+    df_cfsigma = df_cfmean.copy()
+    if cfmean_type == 'ave':
+        cfmean_arr = avgs_arr.copy()
+    elif cfmean_type == 'rep':
+        cfmean_arr = reps_arr.copy()
+    ts_ls = df_ts['timeslice'].unique().tolist()
+    for ts in ts_ls:
+        ts_idx = df_ts[df_ts['timeslice'] == ts].index
+        cfmeans = np.mean(cfmean_arr[ts_idx], axis=0)
+        df_cfmean[ts] = cfmeans
+        #we use reps_arr regardless for standard deviations. Perhaps we should use the average of the standard deviations tho...
+        cfsigmas = np.std(reps_arr[ts_idx], axis=0)
+        df_cfsigma[ts] = cfsigmas
+    df_cfmean['type'] = 'cfmean'
+    df_cfsigma['type'] = 'cfsigma'
+    df_perf = pd.concat([df_cfmean,df_cfsigma], sort=False).reset_index(drop=True)
+    df_perf = pd.melt(df_perf, id_vars=['region','class','type'], value_vars=ts_ls, var_name='timeslice', value_name= 'value')
+    df_perf = df_perf.pivot_table(index=['region','class','timeslice'], columns='type', values='value')
+    print('Done with performance calcs: '+ str(datetime.datetime.now() - startTime))
+    return df_perf
+
+def save_outputs(df_sc, df_sc_agg, df_perf, out_dir, out_prefix):
+    print('Saving outputs...')
+    startTime = datetime.datetime.now()
+    df_sc.to_csv(out_dir + out_prefix + '_supply_curve_raw.csv', index=False)
+    df_sc_agg.to_csv(out_dir + out_prefix + '_supply_curve.csv')
+    df_perf.to_csv(out_dir + out_prefix + '_performance.csv')
+    print('Done saving outputs: '+ str(datetime.datetime.now() - startTime))
+
 
 if __name__== '__main__':
     save_inputs(this_dir_path, cf.out_dir, cf.timeslice_path, cf.class_path)
     df_sc = get_df_sc_filtered(cf.sc_path, cf.reg_col, cf.filter_cols, cf.test_mode, cf.test_filters)
     df_sc = classify(df_sc, cf.class_path)
     df_sc = binnify(df_sc, cf.bin_group_cols, cf.bin_col, cf.bin_num, cf.bin_method)
-    output_raw_sc(df_sc, cf.out_dir, cf.out_prefix)
     df_sc_agg = aggregate_sc(df_sc)
-    df_sc_agg.to_csv(cf.out_dir + cf.out_prefix + '_supply_curve.csv')
-    df_rep, avgs_arr, reps_arr, ts_arr = get_profiles(df_sc, cf.profile_path, cf.profile_dset, cf.profile_id_col,
+    df_rep, avgs_arr, reps_arr, df_ts = get_profiles(df_sc, cf.profile_path, cf.profile_dset, cf.profile_id_col,
         cf.profile_weight_col, cf.timeslice_path, cf.to_local, cf.to_1am, cf.rep_profile_method, cf.out_dir, cf.out_prefix)
+    df_perf = calc_performance(avgs_arr, reps_arr, df_rep, df_ts, cf.cfmean_type)
+    save_outputs(df_sc, df_sc_agg, df_perf, cf.out_dir, cf.out_prefix)

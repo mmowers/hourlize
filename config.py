@@ -20,5 +20,6 @@ bin_col = 'trans_cap_cost'
 bin_num = 5
 bin_method = 'equal_capacity' #'kmeans', 'equal_capacity'
 rep_profile_method = 'rmse' #'rmse','ave'
+cfmean_type = 'rep' #'rep', 'ave'
 to_local = True
 to_1am = True
