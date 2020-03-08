@@ -106,7 +106,7 @@ def aggregate_sc(df_sc):
     return df_sc_agg
 
 def get_profiles(df_sc, profile_path, profile_dset, profile_id_col, profile_weight_col,
-                 timeslice_path, rep_profile_method, out_dir, out_prefix):
+                 timeslice_path, to_local, to_1am, rep_profile_method, out_dir, out_prefix):
     print('Getting average profiles...')
     startTime = datetime.datetime.now()
     df_ts = pd.read_csv(timeslice_path, low_memory=False)
@@ -150,10 +150,13 @@ def get_profiles(df_sc, profile_path, profile_dset, profile_id_col, profile_weig
             t3 = datetime.datetime.now()
             #reduce elements to on the hour using idxls
             arr = arr[idxls,:]
-            #Convert to local time and start at 1am instead of 12am, ie roll by an additional 1.
             arr = arr.T
-            for n in range(len(arr)):
-                arr[n] = np.roll(arr[n], tzls[n] - 1)
+            if to_local is True:
+                for n in range(len(arr)):
+                    arr[n] = np.roll(arr[n], tzls[n])
+            #to start at 1am instead of 12am, roll by an additional 1.
+            if to_1am is True:
+                arr = np.roll(arr, -1, axis=1)
             #Take weighted average and add to avgs_arr
             avg_arr = np.average(arr, axis=0, weights=wtls)
             avgs_arr[:,i] = avg_arr
@@ -212,7 +215,7 @@ if __name__== '__main__':
     df_sc_agg = aggregate_sc(df_sc)
     df_sc_agg.to_csv(cf.out_dir + cf.out_prefix + '_supply_curve.csv')
     df_rep, avgs_arr, reps_arr = get_profiles(df_sc, cf.profile_path, cf.profile_dset, cf.profile_id_col,
-        cf.profile_weight_col, cf.timeslice_path, cf.rep_profile_method, cf.out_dir, cf.out_prefix)
+        cf.profile_weight_col, cf.timeslice_path, cf.to_local, cf.to_1am, cf.rep_profile_method, cf.out_dir, cf.out_prefix)
     #Save input files and config to output
     shutil.copy2(this_dir_path + '/minirevx.py', cf.out_dir)
     shutil.copy2(this_dir_path + '/config.py', cf.out_dir)
