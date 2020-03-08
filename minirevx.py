@@ -4,9 +4,12 @@ import sklearn.cluster as sc
 import pdb
 import datetime
 import os
+import shutil
 import h5py
 import json
 import config as cf
+
+this_dir_path = os.path.dirname(os.path.realpath(__file__))
 
 def get_df_sc_filtered(sc_path, reg_col, filter_cols={}, test_mode=False, test_filters={}):
     print('Reading supply curve inputs and filtering...')
@@ -210,3 +213,8 @@ if __name__== '__main__':
     df_sc_agg.to_csv(cf.out_dir + cf.out_prefix + '_supply_curve.csv')
     df_rep, avgs_arr, reps_arr = get_profiles(df_sc, cf.profile_path, cf.profile_dset, cf.profile_id_col,
         cf.profile_weight_col, cf.timeslice_path, cf.rep_profile_method, cf.out_dir, cf.out_prefix)
+    #Save input files and config to output
+    shutil.copy2(this_dir_path + '/minirevx.py', cf.out_dir)
+    shutil.copy2(this_dir_path + '/config.py', cf.out_dir)
+    shutil.copy2(cf.timeslice_path, cf.out_dir)
+    shutil.copy2(cf.class_path, cf.out_dir)
