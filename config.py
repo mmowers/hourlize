@@ -12,8 +12,8 @@ timeslice_path = 'timeslices.csv'
 out_prefix = 'windons'
 
 #More consistent config
-out_dir = 'output_' + datetime.datetime.now().strftime("%Y-%m-%d-%H-%M-%S-%f") + '/'
-test_filters = {'model_region':[1,100]}
+out_dir = 'output/' #for an added datetime string use 'output_' + datetime.datetime.now().strftime("%Y-%m-%d-%H-%M-%S-%f") + '/'
+test_filters = {'model_region':[1]}
 reg_col = 'model_region'
 bin_group_cols = ['region','class']
 bin_col = 'trans_cap_cost'

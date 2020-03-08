@@ -111,6 +111,10 @@ def get_profiles(df_sc, profile_path, profile_dset, profile_id_col, profile_weig
     startTime = datetime.datetime.now()
     df_ts = pd.read_csv(timeslice_path, low_memory=False)
     df_ts['datetime'] = pd.to_datetime(df_ts['datetime'])
+    #create array of datetimes to output
+    ts_arr = df_ts['datetime'].to_numpy()
+    if to_1am is True:
+        ts_arr = np.roll(ts_arr, -1)
     #get unique combinations of region and class
     df_rep = df_sc[['region','class']].drop_duplicates().sort_values(by=['region','class']).reset_index(drop=True)
     num_profiles = len(df_rep)
@@ -203,9 +207,10 @@ def get_profiles(df_sc, profile_path, profile_dset, profile_id_col, profile_weig
     out_file = out_dir + out_prefix + '_hourly_cf.h5'
     with h5py.File(out_file, 'w') as f:
         f.create_dataset('rep_profiles_0', data=reps_arr_out)
+        f.create_dataset('time_index', data=ts_arr.astype('S'))
         f.create_dataset('meta', data=df_rep.to_records(index=False))
     print('Done outputting profiles: '+ str(datetime.datetime.now() - startTime))
-    return df_rep, avgs_arr, reps_arr
+    return df_rep, avgs_arr, reps_arr, ts_arr
 
 if __name__== '__main__':
     df_sc = get_df_sc_filtered(cf.sc_path, cf.reg_col, cf.filter_cols, cf.test_mode, cf.test_filters)
@@ -214,7 +219,7 @@ if __name__== '__main__':
     output_raw_sc(df_sc, cf.out_dir, cf.out_prefix)
     df_sc_agg = aggregate_sc(df_sc)
     df_sc_agg.to_csv(cf.out_dir + cf.out_prefix + '_supply_curve.csv')
-    df_rep, avgs_arr, reps_arr = get_profiles(df_sc, cf.profile_path, cf.profile_dset, cf.profile_id_col,
+    df_rep, avgs_arr, reps_arr, ts_arr = get_profiles(df_sc, cf.profile_path, cf.profile_dset, cf.profile_id_col,
         cf.profile_weight_col, cf.timeslice_path, cf.to_local, cf.to_1am, cf.rep_profile_method, cf.out_dir, cf.out_prefix)
     #Save input files and config to output
     shutil.copy2(this_dir_path + '/minirevx.py', cf.out_dir)
