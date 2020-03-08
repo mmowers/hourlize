@@ -102,7 +102,8 @@ def aggregate_sc(df_sc):
     print('Done aggregating supply curve: '+ str(datetime.datetime.now() - startTime))
     return df_sc_agg
 
-def get_profiles(df_sc, profile_path, profile_dset, profile_id_col, profile_weight_col, timeslice_path, rep_profile_method, out_dir, out_prefix):
+def get_profiles(df_sc, profile_path, profile_dset, profile_id_col, profile_weight_col,
+                 timeslice_path, rep_profile_method, scale_profile, out_dir, out_prefix):
     print('Getting average profiles...')
     startTime = datetime.datetime.now()
     df_ts = pd.read_csv(timeslice_path, low_memory=False)
@@ -185,10 +186,17 @@ def get_profiles(df_sc, profile_path, profile_dset, profile_id_col, profile_weig
     print('Outputting profiles...')
     startTime = datetime.datetime.now()
     out_file = out_dir + out_prefix + '_hourly_cf.h5'
+    if scale_profile is True:
+        reps_arr_out = (reps_arr*1000).round().astype('uint16')
+    else:
+        reps_arr_out = reps_arr.copy()
+        reps_arr = reps_arr / 1000
+        avgs_arr = avgs_arr / 1000
     with h5py.File(out_file, 'w') as f:
-        f.create_dataset('rep_profiles_0', data=reps_arr)
+        f.create_dataset('rep_profiles_0', data=reps_arr_out)
         f.create_dataset('meta', data=df_rep.to_records(index=False))
     print('Done outputting profiles: '+ str(datetime.datetime.now() - startTime))
+    pdb.set_trace()
     return df_rep, avgs_arr, reps_arr
 
 if __name__== '__main__':
@@ -199,5 +207,5 @@ if __name__== '__main__':
     df_sc_agg = aggregate_sc(df_sc)
     df_sc_agg.to_csv(cf.out_dir + cf.out_prefix + '_supply_curve.csv')
     df_rep, avgs_arr, reps_arr = get_profiles(df_sc, cf.profile_path, cf.profile_dset, cf.profile_id_col,
-        cf.profile_weight_col, cf.timeslice_path, cf.rep_profile_method, cf.out_dir, cf.out_prefix)
-    pdb.set_trace()
+        cf.profile_weight_col, cf.timeslice_path, cf.rep_profile_method, cf.scale_profile, cf.out_dir, cf.out_prefix)
+

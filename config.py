@@ -6,7 +6,7 @@ profile_path = '../runs 2020-02-27/wind/reeds_wind_rep_profiles_2012.h5'
 profile_dset = 'rep_profiles_0'
 profile_id_col = 'sc_gid'
 profile_weight_col = 'capacity'
-profile_scale = True
+scale_profile = True
 timeslice_path = 'timeslices.csv'
 out_prefix = 'windons'
 
