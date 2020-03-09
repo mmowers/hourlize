@@ -137,15 +137,24 @@ def get_profiles(df_sc, profile_path, profile_dset, profile_id_col, profile_weig
             wtls = df_rc[profile_weight_col].tolist()
             tzls = df_rc['timezone'].tolist()
             tzls = [int(t) for t in tzls]
-            if df_rc[profile_id_col].dtype is object:
+            if df_rc[profile_id_col].dtype == object:
+                #This means we are using a column whose values represent lists. This happens for pv.
                 idls = [json.loads(l) for l in idls]
                 wtls = [json.loads(l) for l in wtls]
-                #We will need to flatten idls and wtls, which means we may need to turn tzls into a list of lists too
-                #with duplication. For h5 retrieval we also need the ids sorted...
-                #idls = ''.join(idls).replace('[','').replace(']',',').replace(' ','').strip(',').split(',')
-                #wtls = ''.join(wtls).replace('[','').replace(']',',').replace(' ','').strip(',').split(',')
-                #idls = [int(n) for n in idls]
-                #wtls = [int(n) for n in wtls]
+                #duplicate tzls entries to match up with idls
+                for n in range(len(tzls)):
+                    tzls[n] = [tzls[n]] * len(idls[n])
+                #flatten lists and gather into dataframe
+                idls = [item for sublist in idls for item in sublist]
+                wtls = [item for sublist in wtls for item in sublist]
+                tzls = [item for sublist in tzls for item in sublist]
+                df_ids = pd.DataFrame({'idls':idls, 'wtls':wtls, 'tzls':tzls})
+                #sum weighting over duplicate ids. For timezone, this is potentially problematic. I'm simply picking the first one...
+                #this also ends up sorting by id, important for h5 retrieval:
+                df_ids =  df_ids.groupby(['idls'], as_index =False).agg({'wtls':sum, 'tzls':lambda x: x.iloc[0]})
+                idls = df_ids['idls'].tolist()
+                wtls = df_ids['wtls'].tolist()
+                tzls = df_ids['tzls'].tolist()
             if len(idls) != len(wtls):
                 print('IDs and weights have different length!')
             t2 = datetime.datetime.now()
@@ -170,8 +179,8 @@ def get_profiles(df_sc, profile_path, profile_dset, profile_id_col, profile_weig
                 errs = abs(arr.sum(axis=1) - avg_arr.sum())
             min_idx = np.argmin(errs)
             reps_arr[:,i] = arr[min_idx]
-            reps_idx.append(idls[min_idx]) #Does this need to change for pv?
-            timezones.append(tzls[min_idx]) #Does this need to change for pv?
+            reps_idx.append(idls[min_idx])
+            timezones.append(tzls[min_idx])
             t4 = datetime.datetime.now()
             frac = (i+1)/num_profiles
             pct = round(frac*100)
@@ -240,6 +249,7 @@ def save_outputs(df_sc, df_sc_agg, df_perf, reps_arr, df_ts, df_rep, out_dir, ou
     print('Done saving outputs: '+ str(datetime.datetime.now() - startTime))
 
 if __name__== '__main__':
+    startTime = datetime.datetime.now()
     save_inputs(this_dir_path, cf.out_dir, cf.timeslice_path, cf.class_path)
     df_sc = get_df_sc_filtered(cf.sc_path, cf.reg_col, cf.filter_cols, cf.test_mode, cf.test_filters)
     df_sc = classify(df_sc, cf.class_path)
@@ -249,3 +259,4 @@ if __name__== '__main__':
         cf.profile_weight_col, cf.timeslice_path, cf.to_local, cf.to_1am, cf.rep_profile_method)
     df_perf = calc_performance(avgs_arr, reps_arr, df_rep, df_ts, cf.cfmean_type)
     save_outputs(df_sc, df_sc_agg, df_perf, reps_arr, df_ts, df_rep, cf.out_dir, cf.out_prefix)
+    print('Total time: '+ str(datetime.datetime.now() - startTime))
