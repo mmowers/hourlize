@@ -24,3 +24,4 @@ rep_profile_method = 'rmse' #'rmse','ave'
 cfmean_type = 'rep' #'rep', 'ave'
 to_local = True
 to_1am = True
+driver = 'H5FD_CORE' #'H5FD_CORE', None. Setting to None might help for testing

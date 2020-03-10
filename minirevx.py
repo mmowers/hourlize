@@ -5,7 +5,7 @@ import pdb
 import datetime
 import os
 import shutil
-import h5py
+import tables
 import json
 import config as cf
 
@@ -106,7 +106,7 @@ def aggregate_sc(df_sc):
     return df_sc_agg
 
 def get_profiles(df_sc, profile_path, profile_dset, profile_id_col, profile_weight_col,
-                 timeslice_path, to_local, to_1am, rep_profile_method):
+                 timeslice_path, to_local, to_1am, rep_profile_method, driver):
     print('Getting profiles...')
     startTime = datetime.datetime.now()
     df_ts = pd.read_csv(timeslice_path, low_memory=False)
@@ -117,14 +117,14 @@ def get_profiles(df_sc, profile_path, profile_dset, profile_id_col, profile_weig
     #get unique combinations of region and class
     df_rep = df_sc[['region','class']].drop_duplicates().sort_values(by=['region','class']).reset_index(drop=True)
     num_profiles = len(df_rep)
-    with h5py.File(profile_path, 'r') as h5:
+    with tables.open_file(profile_path, 'r', driver=driver) as h5:
         #iniitialize avgs_arr and reps_arr with the right dimensions
         avgs_arr = np.zeros((8760,num_profiles))
         reps_arr = avgs_arr.copy()
         reps_idx = []
         timezones = []
         #get idxls, the index of the profiles, which excludes half hour for pv, e.g.
-        times = h5['time_index'][:].astype('datetime64')
+        times = h5.root['time_index'][:].astype('datetime64')
         time_df = pd.DataFrame({'datetime':times})
         time_df = pd.merge(left=time_df, right=df_ts, on='datetime', how='left', sort=False)
         idxls = time_df[time_df['timeslice'].notnull()].index.tolist()
@@ -158,7 +158,7 @@ def get_profiles(df_sc, profile_path, profile_dset, profile_id_col, profile_weig
             if len(idls) != len(wtls):
                 print('IDs and weights have different length!')
             t2 = datetime.datetime.now()
-            arr = h5[profile_dset][:,idls]
+            arr = h5.root[profile_dset][:,idls]
             t3 = datetime.datetime.now()
             #reduce elements to on the hour using idxls
             arr = arr[idxls,:]
@@ -199,8 +199,8 @@ def get_profiles(df_sc, profile_path, profile_dset, profile_id_col, profile_weig
                   '\tlft='+str(mlft)+'m,'+str(slft)+'s')
 
         #scale the data as necessary
-        if 'scale_factor' in h5[profile_dset].attrs.keys():
-            scale = h5[profile_dset].attrs['scale_factor']
+        if 'scale_factor' in h5.root[profile_dset].attrs:
+            scale = h5.root[profile_dset].attrs['scale_factor']
             reps_arr = reps_arr / scale
             avgs_arr = avgs_arr / scale
     df_rep['rep_gen_gid'] = reps_idx
@@ -242,10 +242,11 @@ def save_outputs(df_sc, df_sc_agg, df_perf, reps_arr, df_ts, df_rep, out_dir, ou
     #output profiles to h5 file
     out_file = out_dir + out_prefix + '_hourly_cf.h5'
     reps_arr_out = (reps_arr*1000).round().astype('uint16')
-    with h5py.File(out_file, 'w') as f:
-        f.create_dataset('rep_profiles_0', data=reps_arr_out)
-        f.create_dataset('time_index', data=df_ts['datetime'].to_numpy().astype('S'))
-        f.create_dataset('meta', data=df_rep.to_records(index=False))
+    with tables.open_file(out_file, 'w') as h5:
+        h5.create_array(h5.root, 'rep_profiles_0', reps_arr_out, 'representative profiles')
+        h5.create_array(h5.root, 'time_index', df_ts['datetime'].to_numpy().astype('S'), 'time index of profiles')
+        #The following throws an error because 'class' is one of the column headers.
+        h5.create_table(h5.root, 'meta', df_rep.to_records(index=False), 'meta on each profile')
     print('Done saving outputs: '+ str(datetime.datetime.now() - startTime))
 
 if __name__== '__main__':
@@ -256,7 +257,7 @@ if __name__== '__main__':
     df_sc = binnify(df_sc, cf.bin_group_cols, cf.bin_col, cf.bin_num, cf.bin_method)
     df_sc_agg = aggregate_sc(df_sc)
     df_rep, avgs_arr, reps_arr, df_ts = get_profiles(df_sc, cf.profile_path, cf.profile_dset, cf.profile_id_col,
-        cf.profile_weight_col, cf.timeslice_path, cf.to_local, cf.to_1am, cf.rep_profile_method)
+        cf.profile_weight_col, cf.timeslice_path, cf.to_local, cf.to_1am, cf.rep_profile_method, cf.driver)
     df_perf = calc_performance(avgs_arr, reps_arr, df_rep, df_ts, cf.cfmean_type)
     save_outputs(df_sc, df_sc_agg, df_perf, reps_arr, df_ts, df_rep, cf.out_dir, cf.out_prefix)
     print('Total time: '+ str(datetime.datetime.now() - startTime))
