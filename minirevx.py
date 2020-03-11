@@ -4,12 +4,26 @@ import sklearn.cluster as sc
 import pdb
 import datetime
 import os
+import sys
 import shutil
 import tables
 import json
 import config as cf
+import logging
 
 this_dir_path = os.path.dirname(os.path.realpath(__file__))
+
+logger = logging.getLogger('')
+logger.setLevel(logging.DEBUG)
+sh = logging.StreamHandler(sys.stdout)
+fh = logging.FileHandler(cf.out_dir + cf.out_prefix + '.log', mode='w')
+sh.setLevel(logging.DEBUG)
+fh.setLevel(logging.DEBUG)
+formatter = logging.Formatter('%(asctime)s - %(message)s')
+sh.setFormatter(formatter)
+fh.setFormatter(formatter)
+logger.addHandler(sh)
+logger.addHandler(fh)
 
 def save_inputs(minirevx_path, out_dir, timeslice_path, class_path):
     if not os.path.exists(out_dir):
@@ -20,7 +34,7 @@ def save_inputs(minirevx_path, out_dir, timeslice_path, class_path):
     shutil.copy2(class_path, out_dir)
 
 def get_df_sc_filtered(sc_path, reg_col, filter_cols={}, test_mode=False, test_filters={}):
-    print('Reading supply curve inputs and filtering...')
+    logger.info('Reading supply curve inputs and filtering...')
     startTime = datetime.datetime.now()
     df = pd.read_csv(sc_path, dtype={reg_col:int}, low_memory=False)
     for k in filter_cols.keys():
@@ -29,11 +43,11 @@ def get_df_sc_filtered(sc_path, reg_col, filter_cols={}, test_mode=False, test_f
         for k in test_filters.keys():
             df = df[df[k].isin(test_filters[k])].copy()
     df['region'] = df[reg_col]
-    print('Done reading supply curve inputs and filtering: '+ str(datetime.datetime.now() - startTime))
+    logger.info('Done reading supply curve inputs and filtering: '+ str(datetime.datetime.now() - startTime))
     return df
 
 def classify(df_sc, class_path):
-    print('Adding classes...')
+    logger.info('Adding classes...')
     startTime = datetime.datetime.now()
     df_class = pd.read_csv(class_path, index_col='class')
     df_sc['class'] = 'NA'
@@ -48,15 +62,15 @@ def classify(df_sc, class_path):
             else:
                 mask = mask & (df_sc[col] == val)
         df_sc.loc[mask, 'class'] = cname
-    print('Done adding classes: '+ str(datetime.datetime.now() - startTime))
+    logger.info('Done adding classes: '+ str(datetime.datetime.now() - startTime))
     return df_sc
 
 def binnify(df_sc, bin_group_cols, bin_col, bin_num, bin_method):
-    print('Adding bins...')
+    logger.info('Adding bins...')
     startTime = datetime.datetime.now()
     df_sc = df_sc.groupby(bin_group_cols, sort=False).apply(get_bin, bin_col, bin_num, bin_method)
     df_sc = df_sc.reset_index(drop=True).sort_values('sc_gid')
-    print('Done adding bins: '+ str(datetime.datetime.now() - startTime))
+    logger.info('Done adding bins: '+ str(datetime.datetime.now() - startTime))
     return df_sc
 
 def get_bin(df_in, bin_col, bin_num, bin_method):
@@ -96,18 +110,18 @@ def get_bin(df_in, bin_col, bin_num, bin_method):
     return df
 
 def aggregate_sc(df_sc):
-    print('Aggregating supply curve...')
+    logger.info('Aggregating supply curve...')
     startTime = datetime.datetime.now()
     # Define a lambda function to compute the weighted mean:
     wm = lambda x: np.average(x, weights=df_sc.loc[x.index, 'capacity'])
     aggs = {'capacity': 'sum', 'trans_cap_cost':wm, 'dist_mi':wm }
     df_sc_agg = df_sc.groupby(['region','class','bin']).agg(aggs)
-    print('Done aggregating supply curve: '+ str(datetime.datetime.now() - startTime))
+    logger.info('Done aggregating supply curve: '+ str(datetime.datetime.now() - startTime))
     return df_sc_agg
 
 def get_profiles(df_sc, profile_path, profile_dset, profile_id_col, profile_weight_col,
                  timeslice_path, to_local, to_1am, rep_profile_method, driver, use_slice):
-    print('Getting profiles...')
+    logger.info('Getting profiles...')
     startTime = datetime.datetime.now()
     df_ts = pd.read_csv(timeslice_path, low_memory=False)
     df_ts['datetime'] = pd.to_datetime(df_ts['datetime'])
@@ -156,7 +170,7 @@ def get_profiles(df_sc, profile_path, profile_dset, profile_id_col, profile_weig
                 wtls = df_ids['wtls'].tolist()
                 tzls = df_ids['tzls'].tolist()
             if len(idls) != len(wtls):
-                print('IDs and weights have different length!')
+                logger.info('IDs and weights have different length!')
             t2 = datetime.datetime.now()
             if use_slice:
                 min_idls = min(idls)
@@ -196,7 +210,7 @@ def get_profiles(df_sc, profile_path, profile_dset, profile_id_col, profile_weig
             mtot, stot = divmod(round(ttot), 60)
             tlft = ttot*(1- frac)/frac
             mlft, slft = divmod(round(tlft), 60)
-            print(str(pct)+'%'+
+            logger.info(str(pct)+'%'+
                   '\treg='+str(r['region'])+
                   '\tcls='+str(r['class'])+
                   '\tt='+str(tthis)+'s'+
@@ -211,11 +225,11 @@ def get_profiles(df_sc, profile_path, profile_dset, profile_id_col, profile_weig
             avgs_arr = avgs_arr / scale
     df_rep['rep_gen_gid'] = reps_idx
     df_rep['timezone'] = timezones
-    print('Done getting profiles: '+ str(datetime.datetime.now() - startTime))
+    logger.info('Done getting profiles: '+ str(datetime.datetime.now() - startTime))
     return df_rep, avgs_arr, reps_arr, df_ts
 
 def calc_performance(avgs_arr, reps_arr, df_rep, df_ts, cfmean_type):
-    print('Calculate peformance characteristics...')
+    logger.info('Calculate peformance characteristics...')
     startTime = datetime.datetime.now()
     df_cfmean = df_rep[['region','class']].copy()
     df_cfsigma = df_cfmean.copy()
@@ -236,11 +250,11 @@ def calc_performance(avgs_arr, reps_arr, df_rep, df_ts, cfmean_type):
     df_perf = pd.concat([df_cfmean,df_cfsigma], sort=False).reset_index(drop=True)
     df_perf = pd.melt(df_perf, id_vars=['region','class','type'], value_vars=ts_ls, var_name='timeslice', value_name= 'value')
     df_perf = df_perf.pivot_table(index=['region','class','timeslice'], columns='type', values='value')
-    print('Done with performance calcs: '+ str(datetime.datetime.now() - startTime))
+    logger.info('Done with performance calcs: '+ str(datetime.datetime.now() - startTime))
     return df_perf
 
 def save_outputs(df_sc, df_sc_agg, df_perf, reps_arr, df_ts, df_rep, out_dir, out_prefix):
-    print('Saving outputs...')
+    logger.info('Saving outputs...')
     startTime = datetime.datetime.now()
     df_sc.to_csv(out_dir + out_prefix + '_supply_curve_raw.csv', index=False)
     df_sc_agg.to_csv(out_dir + out_prefix + '_supply_curve.csv')
@@ -253,7 +267,7 @@ def save_outputs(df_sc, df_sc_agg, df_perf, reps_arr, df_ts, df_rep, out_dir, ou
         h5.create_array(h5.root, 'time_index', df_ts['datetime'].to_numpy().astype('S'), 'time index of profiles')
         #The following throws an error because 'class' is one of the column headers.
         h5.create_table(h5.root, 'meta', df_rep.to_records(index=False), 'meta on each profile')
-    print('Done saving outputs: '+ str(datetime.datetime.now() - startTime))
+    logger.info('Done saving outputs: '+ str(datetime.datetime.now() - startTime))
 
 if __name__== '__main__':
     startTime = datetime.datetime.now()
@@ -266,4 +280,4 @@ if __name__== '__main__':
         cf.profile_weight_col, cf.timeslice_path, cf.to_local, cf.to_1am, cf.rep_profile_method, cf.driver, cf.use_slice)
     df_perf = calc_performance(avgs_arr, reps_arr, df_rep, df_ts, cf.cfmean_type)
     save_outputs(df_sc, df_sc_agg, df_perf, reps_arr, df_ts, df_rep, cf.out_dir, cf.out_prefix)
-    print('Total time: '+ str(datetime.datetime.now() - startTime))
+    logger.info('All done! total time: '+ str(datetime.datetime.now() - startTime))
