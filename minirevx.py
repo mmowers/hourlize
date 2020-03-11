@@ -122,7 +122,7 @@ def aggregate_sc(df_sc):
     return df_sc_agg
 
 def get_profiles(df_sc, profile_path, profile_dset, profile_id_col, profile_weight_col,
-                 timeslice_path, to_local, to_1am, rep_profile_method, driver, use_slice):
+                 timeslice_path, to_local, to_1am, rep_profile_method, driver, gather_method):
     logger.info('Getting profiles...')
     startTime = datetime.datetime.now()
     df_ts = pd.read_csv(timeslice_path, low_memory=False)
@@ -174,7 +174,8 @@ def get_profiles(df_sc, profile_path, profile_dset, profile_id_col, profile_weig
             if len(idls) != len(wtls):
                 logger.info('IDs and weights have different length!')
             t2 = datetime.datetime.now()
-            if use_slice:
+            ave_spacing = (max(idls) - min(idls))/len(idls)
+            if gather_method == 'slice' or (gather_method == 'smart' and ave_spacing < 250):
                 min_idls = min(idls)
                 orig_idls_idx = [j - min_idls for j in idls]
                 arr = h5.root[profile_dset][:,min_idls:max(idls)+1]
@@ -281,7 +282,7 @@ if __name__== '__main__':
     df_sc = binnify(df_sc, cf.bin_group_cols, cf.bin_col, cf.bin_num, cf.bin_method)
     df_sc_agg = aggregate_sc(df_sc)
     df_rep, avgs_arr, reps_arr, df_ts = get_profiles(df_sc, cf.profile_path, cf.profile_dset, cf.profile_id_col,
-        cf.profile_weight_col, cf.timeslice_path, cf.to_local, cf.to_1am, cf.rep_profile_method, cf.driver, cf.use_slice)
+        cf.profile_weight_col, cf.timeslice_path, cf.to_local, cf.to_1am, cf.rep_profile_method, cf.driver, cf.gather_method)
     df_perf = calc_performance(avgs_arr, reps_arr, df_rep, df_ts, cf.cfmean_type)
     save_outputs(df_sc, df_sc_agg, df_perf, reps_arr, df_ts, df_rep, out_dir, cf.out_prefix)
     logger.info('All done! total time: '+ str(datetime.datetime.now() - startTime))
