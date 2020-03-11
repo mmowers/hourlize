@@ -11,25 +11,27 @@ import json
 import config as cf
 import logging
 
-this_dir_path = os.path.dirname(os.path.realpath(__file__))
-
 logger = logging.getLogger('')
-logger.setLevel(logging.DEBUG)
-sh = logging.StreamHandler(sys.stdout)
-fh = logging.FileHandler(cf.out_dir + cf.out_prefix + '.log', mode='w')
-sh.setLevel(logging.DEBUG)
-fh.setLevel(logging.DEBUG)
-formatter = logging.Formatter('%(asctime)s - %(message)s')
-sh.setFormatter(formatter)
-fh.setFormatter(formatter)
-logger.addHandler(sh)
-logger.addHandler(fh)
 
-def save_inputs(minirevx_path, out_dir, timeslice_path, class_path):
-    if not os.path.exists(out_dir):
-        os.makedirs(out_dir)
-    shutil.copy2(minirevx_path + '/minirevx.py', out_dir)
-    shutil.copy2(minirevx_path + '/config.py', out_dir)
+def setup(this_dir_path, out_dir, timeslice_path, class_path):
+    time = datetime.datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
+    if os.path.exists(out_dir):
+        os.rename(out_dir, os.path.dirname(out_dir) + '-archive-'+time)
+    os.makedirs(out_dir)
+
+    logger.setLevel(logging.DEBUG)
+    sh = logging.StreamHandler(sys.stdout)
+    fh = logging.FileHandler(out_dir + 'log.txt', mode='w')
+    sh.setLevel(logging.DEBUG)
+    fh.setLevel(logging.DEBUG)
+    formatter = logging.Formatter('%(asctime)s - %(message)s')
+    sh.setFormatter(formatter)
+    fh.setFormatter(formatter)
+    logger.addHandler(sh)
+    logger.addHandler(fh)
+
+    shutil.copy2(this_dir_path + 'minirevx.py', out_dir)
+    shutil.copy2(this_dir_path + 'config.py', out_dir)
     shutil.copy2(timeslice_path, out_dir)
     shutil.copy2(class_path, out_dir)
 
@@ -271,7 +273,9 @@ def save_outputs(df_sc, df_sc_agg, df_perf, reps_arr, df_ts, df_rep, out_dir, ou
 
 if __name__== '__main__':
     startTime = datetime.datetime.now()
-    save_inputs(this_dir_path, cf.out_dir, cf.timeslice_path, cf.class_path)
+    this_dir_path = os.path.dirname(os.path.realpath(__file__)) + '/'
+    out_dir = this_dir_path + 'out/' + cf.out_dir
+    setup(this_dir_path, out_dir, cf.timeslice_path, cf.class_path)
     df_sc = get_df_sc_filtered(cf.sc_path, cf.reg_col, cf.filter_cols, cf.test_mode, cf.test_filters)
     df_sc = classify(df_sc, cf.class_path)
     df_sc = binnify(df_sc, cf.bin_group_cols, cf.bin_col, cf.bin_num, cf.bin_method)
@@ -279,5 +283,5 @@ if __name__== '__main__':
     df_rep, avgs_arr, reps_arr, df_ts = get_profiles(df_sc, cf.profile_path, cf.profile_dset, cf.profile_id_col,
         cf.profile_weight_col, cf.timeslice_path, cf.to_local, cf.to_1am, cf.rep_profile_method, cf.driver, cf.use_slice)
     df_perf = calc_performance(avgs_arr, reps_arr, df_rep, df_ts, cf.cfmean_type)
-    save_outputs(df_sc, df_sc_agg, df_perf, reps_arr, df_ts, df_rep, cf.out_dir, cf.out_prefix)
+    save_outputs(df_sc, df_sc_agg, df_perf, reps_arr, df_ts, df_rep, out_dir, cf.out_prefix)
     logger.info('All done! total time: '+ str(datetime.datetime.now() - startTime))
