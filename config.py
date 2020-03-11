@@ -1,6 +1,6 @@
 import datetime
 
-test_mode = True
+test_mode = True #This limits the regions considered to those listed below.
 
 sc_path = '../runs 2020-02-27/pv_rural/outputs_sc.csv'
 profile_path = '../runs 2020-02-27/pv_rural/outputs_gen_2012.h5'
@@ -24,4 +24,5 @@ rep_profile_method = 'rmse' #'rmse','ave'
 cfmean_type = 'rep' #'rep', 'ave'
 to_local = True
 to_1am = True
-driver = 'H5FD_CORE' #'H5FD_CORE', None. Setting to None might help for testing
+driver = 'H5FD_CORE' #'H5FD_CORE', None. H5FD_CORE will load the h5 into memory for better perforamnce, but None must be used for low-memory machines.
+use_slice = True #This setting will take a slice of profile ids from the min to max, rather than using a list of ids, for improved performance when ids are close together for each group.
