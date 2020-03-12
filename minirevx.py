@@ -11,25 +11,30 @@ import json
 import config as cf
 import logging
 
+#Setup logger
 logger = logging.getLogger('')
+logger.setLevel(logging.DEBUG)
+sh = logging.StreamHandler(sys.stdout)
+sh.setLevel(logging.DEBUG)
+formatter = logging.Formatter('%(asctime)s - %(message)s')
+sh.setFormatter(formatter)
+logger.addHandler(sh)
+logger.info('Logger setup!')
 
 def setup(this_dir_path, out_dir, timeslice_path, class_path):
     time = datetime.datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
+    #Create output directory, creating backup if one already exists.
     if os.path.exists(out_dir):
         os.rename(out_dir, os.path.dirname(out_dir) + '-archive-'+time)
     os.makedirs(out_dir)
 
-    logger.setLevel(logging.DEBUG)
-    sh = logging.StreamHandler(sys.stdout)
+    #Add output file for logger
     fh = logging.FileHandler(out_dir + 'log.txt', mode='w')
-    sh.setLevel(logging.DEBUG)
     fh.setLevel(logging.DEBUG)
-    formatter = logging.Formatter('%(asctime)s - %(message)s')
-    sh.setFormatter(formatter)
     fh.setFormatter(formatter)
-    logger.addHandler(sh)
     logger.addHandler(fh)
 
+    #Copy inputs to outputs
     shutil.copy2(this_dir_path + 'minirevx.py', out_dir)
     shutil.copy2(this_dir_path + 'config.py', out_dir)
     shutil.copy2(timeslice_path, out_dir)
