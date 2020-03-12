@@ -91,7 +91,7 @@ def get_bin(df_in, bin_col, bin_num, bin_method):
         kmeans_map = pd.Series(kmeans.cluster_centers_.flatten())
         bin_ser = bin_ser.map(kmeans_map).rank(method='dense')
         df['bin'] = bin_ser.values
-    elif bin_method == 'equal_capacity':
+    elif bin_method == 'equal_cap_man':
         #using a manual method instead of pd.cut because i want the first bin to contain the
         #first sc point regardless, even if its capacity is more than the capacity of the bin,
         #and likewise for other bins, so i don't skip any bins.
@@ -107,6 +107,14 @@ def get_bin(df_in, bin_col, bin_num, bin_method):
             if cumcaps[i] >= totcap*curbin/bin_num:
                 curbin += 1
         df['bin'] = bins
+        df = df.reindex(index=orig_index) #we need the same index ordering for apply to work.
+    elif bin_method == 'equal_cap_cut':
+        orig_index = df.index
+        df.sort_values(by=[bin_col], inplace=True)
+        df['cum_cap'] = df['capacity'].cumsum()
+        bin_ser = pd.cut(df['cum_cap'], bin_num, labels=False)
+        bin_ser = bin_ser.rank(method='dense')
+        df['bin'] = bin_ser.values
         df = df.reindex(index=orig_index) #we need the same index ordering for apply to work.
     df['bin'] = df['bin'].astype(int)
     return df
