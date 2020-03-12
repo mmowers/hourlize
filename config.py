@@ -13,7 +13,7 @@ profile_weight_col = 'gid_counts' #'capacity' for wind, 'gid_counts' for pv
 out_prefix = 'upv' #'windons', 'windoff', 'upv', 'dupv'
 
 #More consistent config
-out_dir = 'output/' #for an added datetime string use 'output_' + datetime.datetime.now().strftime("%Y-%m-%d-%H-%M-%S-%f") + '/'
+out_dir = out_prefix + '_' + datetime.datetime.now().strftime("%Y-%m-%d-%H-%M-%S-%f") + '/'
 test_filters = {'model_region':[1,100]}
 reg_col = 'model_region'
 bin_group_cols = ['region','class']
