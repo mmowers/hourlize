@@ -259,7 +259,7 @@ def calc_performance(avgs_arr, reps_arr, df_rep, df_ts, cfmean_type):
         cfmeans = np.mean(cfmean_arr[ts_idx], axis=0)
         df_cfmean[ts] = cfmeans
         #we use reps_arr regardless for standard deviations. Perhaps we should use the average of the standard deviations tho...
-        cfsigmas = np.std(reps_arr[ts_idx], axis=0)
+        cfsigmas = np.std(reps_arr[ts_idx], ddof=1, axis=0)
         df_cfsigma[ts] = cfsigmas
     df_cfmean['type'] = 'cfmean'
     df_cfsigma['type'] = 'cfsigma'
@@ -281,7 +281,7 @@ def save_outputs(df_sc, df_sc_agg, df_perf, reps_arr, df_ts, df_rep, out_dir, ou
     with tables.open_file(out_file, 'w') as h5:
         h5.create_array(h5.root, 'rep_profiles_0', reps_arr_out, 'representative profiles')
         h5.create_array(h5.root, 'time_index', df_ts['datetime'].to_numpy().astype('S'), 'time index of profiles')
-        #The following throws an error because 'class' is one of the column headers.
+        #The following throws a warning because 'class' is one of the column headers.
         h5.create_table(h5.root, 'meta', df_rep.to_records(index=False), 'meta on each profile')
     logger.info('Done saving outputs: '+ str(datetime.datetime.now() - startTime))
 
