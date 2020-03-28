@@ -135,13 +135,13 @@ def aggregate_sc(df_sc):
     return df_sc_agg
 
 def get_profiles(df_sc, profile_path, profile_dset, profile_id_col, profile_weight_col,
-                 timeslice_path, to_local, to_1am, rep_profile_method, driver, gather_method):
+                 timeslice_path, to_local, start_1am, rep_profile_method, driver, gather_method):
     logger.info('Getting profiles...')
     startTime = datetime.datetime.now()
     df_ts = pd.read_csv(timeslice_path, low_memory=False)
     df_ts['datetime'] = pd.to_datetime(df_ts['datetime'])
     #create array of datetimes to output
-    if to_1am is True:
+    if start_1am is True:
         df_ts = df_ts.apply(np.roll, shift=-1)
     #get unique combinations of region and class
     df_rep = df_sc[['region','class']].drop_duplicates().sort_values(by=['region','class']).reset_index(drop=True)
@@ -203,7 +203,7 @@ def get_profiles(df_sc, profile_path, profile_dset, profile_id_col, profile_weig
                 for n in range(len(arr)):
                     arr[n] = np.roll(arr[n], tzls[n])
             #to start at 1am instead of 12am, roll by an additional 1.
-            if to_1am is True:
+            if start_1am is True:
                 arr = np.roll(arr, -1, axis=1)
             #Take weighted average and add to avgs_arr
             avg_arr = np.average(arr, axis=0, weights=wtls)
@@ -295,7 +295,7 @@ if __name__== '__main__':
     df_sc = binnify(df_sc, cf.bin_group_cols, cf.bin_col, cf.bin_num, cf.bin_method)
     df_sc_agg = aggregate_sc(df_sc)
     df_rep, avgs_arr, reps_arr, df_ts = get_profiles(df_sc, cf.profile_path, cf.profile_dset, cf.profile_id_col,
-        cf.profile_weight_col, cf.timeslice_path, cf.to_local, cf.to_1am, cf.rep_profile_method, cf.driver, cf.gather_method)
+        cf.profile_weight_col, cf.timeslice_path, cf.to_local, cf.start_1am, cf.rep_profile_method, cf.driver, cf.gather_method)
     df_perf = calc_performance(avgs_arr, reps_arr, df_rep, df_ts, cf.cfmean_type)
     save_outputs(df_sc, df_sc_agg, df_perf, reps_arr, df_ts, df_rep, out_dir, cf.out_prefix)
     logger.info('All done! total time: '+ str(datetime.datetime.now() - startTime))
