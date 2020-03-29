@@ -20,6 +20,12 @@ cfmean_type = 'rep' #'rep', 'ave'
 driver = 'H5FD_CORE' #'H5FD_CORE', None. H5FD_CORE will load the h5 into memory for better perforamnce, but None must be used for low-memory machines.
 gather_method = 'smart' # 'list', 'slice', 'smart'. This setting will take a slice of profile ids from the min to max, rather than using a list of ids, for improved performance when ids are close together for each group.
 
+#LOAD CONFIG
+load_source = '//nrelqnap02/ReEDS/PLEXOS_ReEDS_Load/'
+calibrate_path = 'load_inputs/EIA_2010loadbystate.csv'
+ba_frac_path = 'load_inputs/load_participation_factors_st_to_ba.csv'
+out_prefix = 'load'
+
 #SHARED CONFIG
 test_mode = True #This limits the regions considered to those listed below.
 test_filters = {'model_region':[1,100]}
