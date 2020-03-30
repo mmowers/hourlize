@@ -41,7 +41,7 @@ def setup(this_dir_path, out_dir, timeslice_path, calibrate_path, ba_frac_path):
     shutil.copy2(calibrate_path, out_dir)
     shutil.copy2(ba_frac_path, out_dir)
 
-def calc_outputs(load_source, ba_timezone_path, calibrate_path, ba_frac_path, multiyear, select_year, to_local, start_1am, truncate_leaps):
+def calc_outputs(load_source, ba_timezone_path, calibrate_path, ba_frac_path, multiyear, select_year, to_local, truncate_leaps):
     logger.info('Calculating...')
     startTime = datetime.datetime.now()
     df_EI = pd.read_csv(load_source + 'EI_pca_load.csv', low_memory=False, index_col='time', parse_dates=True)
@@ -55,17 +55,12 @@ def calc_outputs(load_source, ba_timezone_path, calibrate_path, ba_frac_path, mu
         shifts = dict(zip(df_tz['ba'], df_tz['timezone']))
         for ba in df_hr:
             df_hr[ba] = np.roll(df_hr[ba], shifts[ba])
-    if start_1am is True:
-        #to start at 1am instead of 12am, roll the data by an additional -1, and add 1 hour to the index
-        for ba in df_hr:
-            df_hr[ba] = np.roll(df_hr[ba], -1)
-        df_hr.index = df_hr.index + pd.DateOffset(hours=1)
-    if truncate_leaps is True:
-        #Remove December 31 after 12am for leap years
-        df_hr = df_hr[~((df_hr.index.year % 4 == 0) & (df_hr.index.month == 12) & (df_hr.index.day == 31) & (df_hr.index.hour > 0))]
     if not multiyear:
         #Remove other years' data
         df_hr = df_hr.loc[str(select_year) + '-01-01':str(select_year) + '-12-31']
+    if truncate_leaps is True:
+        #Remove December 31 for leap years
+        df_hr = df_hr[~((df_hr.index.year % 4 == 0) & (df_hr.index.month == 12) & (df_hr.index.day == 31))]
     logger.info('Done calculating: '+ str(datetime.datetime.now() - startTime))
     return df_hr
 
@@ -81,6 +76,6 @@ if __name__== '__main__':
     out_dir = this_dir_path + 'out/' + cf.out_dir
     setup(this_dir_path, out_dir, cf.timeslice_path, cf.calibrate_path, cf.ba_frac_path)
     df_hr = calc_outputs(cf.load_source, cf.ba_timezone_path, cf.calibrate_path, cf.ba_frac_path,
-                              cf.multiyear, cf.select_year, cf.to_local, cf.start_1am, cf.truncate_leaps)
+                              cf.multiyear, cf.select_year, cf.to_local, cf.truncate_leaps)
     save_outputs(df_hr, out_dir)
     logger.info('All done! total time: '+ str(datetime.datetime.now() - startTime))

@@ -35,6 +35,5 @@ test_mode = True #This limits the regions considered to those listed below.
 test_filters = {'model_region':[1,100]}
 timeslice_path = 'timeslices.csv'
 to_local = True #False means keep the outputs in UTC. True means convert to local time of the respective region
-start_1am = True #This shifts the arrays such that the first entry is 1am instead of 12am
 truncate_leaps = True #Truncate leap years
 out_dir = out_prefix + '_' + datetime.datetime.now().strftime("%Y-%m-%d-%H-%M-%S-%f") + '/'
