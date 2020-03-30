@@ -143,6 +143,7 @@ def get_profiles(df_sc, profile_path, profile_dset, profile_id_col, profile_weig
     #create array of datetimes to output
     if start_1am is True:
         df_ts = df_ts.apply(np.roll, shift=-1)
+        #OR, similar to load, we should only roll df_ts['timeslice'] and then add one hour to df_ts['datetime']
     #get unique combinations of region and class
     df_rep = df_sc[['region','class']].drop_duplicates().sort_values(by=['region','class']).reset_index(drop=True)
     num_profiles = len(df_rep)
