@@ -73,7 +73,7 @@ def save_outputs(df_hr, out_dir):
 if __name__== '__main__':
     startTime = datetime.datetime.now()
     this_dir_path = os.path.dirname(os.path.realpath(__file__)) + '/'
-    out_dir = this_dir_path + 'out/' + cf.out_dir
+    out_dir = this_dir_path + 'out/load_' + datetime.datetime.now().strftime("%Y-%m-%d-%H-%M-%S-%f") + '/'
     setup(this_dir_path, out_dir, cf.timeslice_path, cf.calibrate_path, cf.ba_frac_path)
     df_hr = calc_outputs(cf.load_source, cf.ba_timezone_path, cf.calibrate_path, cf.ba_frac_path,
                               cf.multiyear, cf.select_year, cf.to_local, cf.truncate_leaps)
