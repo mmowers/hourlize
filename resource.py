@@ -35,7 +35,7 @@ def setup(this_dir_path, out_dir, timeslice_path, class_path):
     logger.addHandler(fh)
 
     #Copy inputs to outputs
-    shutil.copy2(this_dir_path + 'minirevx.py', out_dir)
+    shutil.copy2(this_dir_path + 'resource.py', out_dir)
     shutil.copy2(this_dir_path + 'config.py', out_dir)
     shutil.copy2(timeslice_path, out_dir)
     shutil.copy2(class_path, out_dir)
