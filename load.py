@@ -41,7 +41,7 @@ def setup(this_dir_path, out_dir, timeslice_path, calibrate_path, ba_frac_path):
     shutil.copy2(calibrate_path, out_dir)
     shutil.copy2(ba_frac_path, out_dir)
 
-def calc_outputs(load_source, ba_timezone_path, calibrate_path, ba_frac_path, multiyear, select_year, to_local, truncate_leaps):
+def calc_outputs(load_source, ba_timezone_path, calibrate_path, ba_frac_path, hierarchy_path, multiyear, select_year, to_local, truncate_leaps):
     logger.info('Calculating...')
     startTime = datetime.datetime.now()
     df_EI = pd.read_csv(load_source + 'EI_pca_load.csv', low_memory=False, index_col='time', parse_dates=True)
@@ -51,16 +51,40 @@ def calc_outputs(load_source, ba_timezone_path, calibrate_path, ba_frac_path, mu
     #Add logic for testmode?
     if to_local is True:
         #Shift from UTC to local standard time according to timezone
-        df_tz = pd.read_csv(ba_timezone_path, low_memory=False)
+        df_tz = pd.read_csv(ba_timezone_path)
         shifts = dict(zip(df_tz['ba'], df_tz['timezone']))
         for ba in df_hr:
             df_hr[ba] = np.roll(df_hr[ba], shifts[ba])
     if not multiyear:
         #Remove other years' data
-        df_hr = df_hr.loc[str(select_year) + '-01-01':str(select_year) + '-12-31']
+        df_hr = df_hr[df_hr.index.year == select_year].copy()
     if truncate_leaps is True:
         #Remove December 31 for leap years
-        df_hr = df_hr[~((df_hr.index.year % 4 == 0) & (df_hr.index.month == 12) & (df_hr.index.day == 31))]
+        df_hr = df_hr[~((df_hr.index.year % 4 == 0) & (df_hr.index.month == 12) & (df_hr.index.day == 31))].copy()
+    if 'p19' not in df_hr:
+        #Fill p19 with p20 and scale by guess of 1/6 (although calibration below will obviate this scaling)
+        df_hr['p19'] = df_hr['p20'] / 6
+    if calibrate_path != False:
+        #Scale the hourly profiles
+        #First, combine the state-level energy with ba participation factors to calculate the calibrated energy by BA
+        df_st_energy = pd.read_csv(calibrate_path)
+        df_ba_frac = pd.read_csv(ba_frac_path)
+        df_hier = pd.read_csv(hierarchy_path, usecols=['n','st'])
+        df_hier.drop_duplicates(inplace=True)
+        df_ba_frac = pd.merge(left=df_ba_frac, right=df_hier, how='left', on=['n'], sort=False)
+        df_ba_energy = pd.merge(left=df_ba_frac, right=df_st_energy, how='left', on=['st'], sort=False)
+        df_ba_energy['GWh cal'] = df_ba_energy['GWh'] * df_ba_energy['factor']
+        df_ba_energy = df_ba_energy[['n','GWh cal']]
+        #Calculate the annual energy by ba from the hourly profile in GWh and use this to find scaling factors
+        df_hr_sum = df_hr[df_hr.index.year == select_year].copy()
+        df_hr_sum = df_hr_sum.sum()/1e3
+        df_hr_sum = df_hr_sum.reset_index().rename(columns={'index':'n', 0:'GWh orig'})
+        df_scale = pd.merge(left=df_hr_sum, right=df_ba_energy, how='left', on=['n'], sort=False)
+        df_scale['factor'] = df_scale['GWh cal'] / df_scale['GWh orig']
+        scales = dict(zip(df_scale['n'], df_scale['factor']))
+        #Scale the profiles
+        for ba in df_hr:
+            df_hr[ba] = df_hr[ba] * scales[ba]
     logger.info('Done calculating: '+ str(datetime.datetime.now() - startTime))
     return df_hr
 
@@ -76,6 +100,6 @@ if __name__== '__main__':
     out_dir = this_dir_path + 'out/load_' + datetime.datetime.now().strftime("%Y-%m-%d-%H-%M-%S-%f") + '/'
     setup(this_dir_path, out_dir, cf.timeslice_path, cf.calibrate_path, cf.ba_frac_path)
     df_hr = calc_outputs(cf.load_source, cf.ba_timezone_path, cf.calibrate_path, cf.ba_frac_path,
-                              cf.multiyear, cf.select_year, cf.to_local, cf.truncate_leaps)
+                         cf.hierarchy_path, cf.multiyear, cf.select_year, cf.to_local, cf.truncate_leaps)
     save_outputs(df_hr, out_dir)
     logger.info('All done! total time: '+ str(datetime.datetime.now() - startTime))
